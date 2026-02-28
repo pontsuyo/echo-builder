@@ -1,9 +1,9 @@
 (function () {
   const micButton = document.getElementById('ask-voxtral-mic');
-  const VOXTRAL_AUDIO_MODEL = 'voxtral-mini-latest';
+  const VOXTRAL_MODEL = 'voxtral-mini-latest';
   const AUDIO_SEND_NATIVE_FIRST = true;
   const AUDIO_SEND_WAV_FALLBACK = true;
-  const AUDIO_MODEL_CANDIDATES = [VOXTRAL_AUDIO_MODEL];
+  const AUDIO_MODEL_CANDIDATES = [VOXTRAL_MODEL];
   const USE_PCM_LIVE_CAPTURE = true;
   const PCM_LIVE_AS_LIVE_SOURCE = true;
   const AUDIO_ENDPOINT_PATH = '/v1/audio/transcriptions';
@@ -49,7 +49,7 @@
         })
       ),
     apiKey: window.__MISTRAL_API_KEY || '',
-    model: VOXTRAL_AUDIO_MODEL,
+    model: VOXTRAL_MODEL,
   };
   const ENABLE_DEBUG_LOG = Boolean(
     window.__MISTRAL_DEBUG || window.__VOXTRAL_DEBUG || false
@@ -551,7 +551,7 @@
   }
 
   function getAudioModelCandidates() {
-    return uniqueFromList([VOXTRAL_AUDIO_MODEL, ...AUDIO_MODEL_CANDIDATES]);
+    return uniqueFromList([VOXTRAL_MODEL, ...AUDIO_MODEL_CANDIDATES]);
   }
 
   function isInvalidModelError(status, detail) {
@@ -1168,6 +1168,7 @@
   }
 
   function buildAudioForm(blob, enableStream, chunkBase, attempt, model) {
+    const resolvedModel = model || VOXTRAL_MODEL;
     const ext = guessAudioExtension(blob.type);
     const fileName = `chunk-${chunkBase}-${attempt}.${ext}`;
     const file = new File([blob], fileName, {
@@ -1175,7 +1176,7 @@
     });
     const form = new FormData();
     form.append('file', file);
-    form.append('model', model);
+    form.append('model', resolvedModel);
     form.append('language', AUDIO_REQUEST_LANGUAGE);
     form.append('temperature', String(AUDIO_REQUEST_TEMPERATURE));
     if (AUDIO_REQUEST_DIARIZE !== false) {
@@ -1508,12 +1509,13 @@
 
         const fallbackRequestId = `${requestId}-final`;
         const fallbackHeaders = { ...headers };
-        const { form: fallbackForm } = buildAudioForm(
-          requestBlob,
-          false,
-          chunkBase,
-          `${i + 1}f`
-        );
+          const { form: fallbackForm } = buildAudioForm(
+            requestBlob,
+            false,
+            chunkBase,
+            `${i + 1}f`,
+            model
+          );
         const fallbackResponse = await fetch(AUDIO_API.endpoint, {
           method: 'POST',
           headers: fallbackHeaders,

@@ -51,7 +51,7 @@
 - 開発では `window.__MISTRAL_API_KEY` でも動かせます（※ブラウザにキーが載るため本番非推奨）
 - 本番は `window.__MISTRAL_PROXY_URL` 経由でトークンを隠してください（推奨）
 - `window.__MISTRAL_DEBUG = true` にすると、コンソールへリクエスト/レスポンスの詳細が出力されます。
-- `voxtral-mini` は現行APIでは無効なモデル名で 400 が出る可能性があるため、`..._MODEL` は `...-latest` 系（`voxtral-mini-latest` 等）を優先しています。
+- モデルは `voxtral.js` 側の固定値（現状 `voxtral-mini-latest`）を参照します。
 
 ### すぐ使える最低手順
 `index.html` の `voxtral.js` より前に次を置いてください。
@@ -59,11 +59,8 @@
 ```html
 <script>
   // 開発用（Pythonプロキシ）
-  window.__MISTRAL_PROXY_URL = 'http://127.0.0.1:8001';
-  // window.__MISTRAL_DEBUG = true; // 詳細ログを有効化
-  // 共通
-  window.__MISTRAL_API_MODEL = 'mistral-small-latest';
-  window.__MISTRAL_AUDIO_TRANSCRIPT_MODEL = 'voxtral-mini-latest';
+window.__MISTRAL_PROXY_URL = 'http://127.0.0.1:8001';
+// window.__MISTRAL_DEBUG = true; // 詳細ログを有効化
 </script>
 <script src="voxtral.js" defer></script>
 <script src="game.js" defer></script>
@@ -125,8 +122,6 @@ python3 mistral_proxy.py
 // local-mistral-config.js
 // 開発: ローカルPythonプロキシを使う場合（推奨）
 window.__MISTRAL_PROXY_URL = 'http://127.0.0.1:8001';
-window.__MISTRAL_API_MODEL = 'mistral-small-latest';
-window.__MISTRAL_AUDIO_TRANSCRIPT_MODEL = 'voxtral-mini-latest';
 
 // 直書き（非推奨）
 // window.__MISTRAL_API_KEY = 'sk-...';
