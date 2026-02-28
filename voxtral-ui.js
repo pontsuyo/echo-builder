@@ -29,7 +29,7 @@
 
   function updateMicButtonLabel() {
     if (!micButton) return;
-    micButton.textContent = isMicActive() ? 'マイク停止' : isRetryMode ? 'retry' : 'START';
+    micButton.textContent = isMicActive() ? 'STOP' : isRetryMode ? 'Retry' : 'START';
   }
 
   if (micButton) {

@@ -204,8 +204,14 @@ function getRequestedRoofShape(text) {
     return null;
   }
 
-  if (/\b(round|dome)\b|丸|丸い|ドーム/.test(text)) {
+  if (/\b(round|dome|domed)\b|丸|丸い|ドーム/.test(text)) {
     return 'round';
+  }
+  if (/\b(gable|gabled|pitched)\b|切妻|切妻屋根/.test(text)) {
+    return 'gable';
+  }
+  if (/\b(hip|hipped|hipped roof)\b|寄棟|寄棟屋根|片屋根/.test(text)) {
+    return 'hip';
   }
   if (/\b(flat|flat-roof)\b|平|平ら|平らな屋根/.test(text)) {
     return 'flat';
@@ -213,8 +219,37 @@ function getRequestedRoofShape(text) {
   if (/\b(triangle|triangular)\b|三角|三角屋根|三角形/.test(text)) {
     return 'triangle';
   }
+  if (/\b(shed|lean-to|single-pitch)\b|片流れ|片流し|片側屋根/.test(text)) {
+    return 'shed';
+  }
 
   return null;
+}
+
+function getRoofShapeDisplayLabel(roofShape) {
+  const normalized = String(roofShape || '').trim();
+  if (!normalized) {
+    return '';
+  }
+  if (normalized === 'round') {
+    return 'round';
+  }
+  if (normalized === 'flat') {
+    return 'flat';
+  }
+  if (normalized === 'triangle') {
+    return 'triangle';
+  }
+  if (normalized === 'gable') {
+    return 'gable';
+  }
+  if (normalized === 'hip') {
+    return 'hip';
+  }
+  if (normalized === 'shed') {
+    return 'shed';
+  }
+  return normalized;
 }
 
 function setLiveTranscript(text) {
@@ -295,10 +330,10 @@ function pauseMicForBuildAndResumeNextChild(nextHasTurn) {
 
 function updateCommandButtons() {
   if (!resultToggleButton) return;
-  resultToggleButton.textContent = showCommandResults ? '結果非表示' : '結果確認';
+  resultToggleButton.textContent = showCommandResults ? 'Hide Log' : 'Show Log';
 }
 
-function ensureResultText(value, fallback = '未受信') {
+function ensureResultText(value, fallback = 'Not received') {
   const text = String(value || '').trim();
   return text || fallback;
 }
@@ -350,13 +385,15 @@ function getCommandLineX(slot) {
 
 function getEnglishLabel(japaneseLabel) {
   const labelMap = {
-    '壁/塀': 'wall',
-    '屋根': 'roof',
-    '煙突': 'chimney',
-    '門': 'door',
-    '柱': 'column',
-    '窓': 'window',
-    '建築全般': 'house'
+    'wall/fence': 'wall',
+    wall: 'wall',
+    roof: 'roof',
+    chimney: 'chimney',
+    door: 'door',
+    column: 'column',
+    window: 'window',
+    floor: 'wall',
+    house: 'house',
   };
   return labelMap[japaneseLabel] || japaneseLabel;
 }
@@ -512,11 +549,7 @@ function createWorkStartSpeech(spokenText, parsed) {
   }
 
   if (preferredType === 'roof' && roofShape) {
-    const roofShapeLabel = roofShape === 'round'
-      ? 'round'
-      : roofShape === 'flat'
-        ? 'flat'
-        : roofShape;
+    const roofShapeLabel = getRoofShapeDisplayLabel(roofShape);
     return `${roofShapeLabel} roof... got it!`;
   }
 
@@ -591,7 +624,9 @@ function isBuildingCommand(text) {
       interpretationEvidence = interpretationEvidenceTokens.join(' / ');
       const quantityText = quantity > 1 ? ` ${quantity} times` : '';
       const englishLabel = getEnglishLabel(rule.label);
-      const roofShapeText = rule.partType === 'roof' && requestedRoofShape ? ` ${requestedRoofShape}` : '';
+      const roofShapeText = rule.partType === 'roof' && requestedRoofShape
+        ? ` ${getRoofShapeDisplayLabel(requestedRoofShape)}`
+        : '';
       return {
         isBuild: true,
         interpretation: `I added ${englishLabel}${roofShapeText}${quantityText}!`,
@@ -618,11 +653,11 @@ function isBuildingCommand(text) {
     if (hasRoof) {
       interpretationEvidenceTokens = collectEvidenceTokens(
         raw,
-        ['屋根', 'roof', 'roofs', 'roofing', quantityEvidenceToken]
+        ['roof', 'roofs', 'roofing', quantityEvidenceToken]
       );
       interpretationEvidence = interpretationEvidenceTokens.join(' / ');
       const roofShape = requestedRoofShape;
-      const shapeText = roofShape ? ` ${roofShape}` : '';
+      const shapeText = roofShape ? ` ${getRoofShapeDisplayLabel(roofShape)}` : '';
       return {
         isBuild: true,
         interpretation: `I added a roof${shapeText}${quantityText}!`,
@@ -636,7 +671,7 @@ function isBuildingCommand(text) {
     if (hasWall) {
       interpretationEvidenceTokens = collectEvidenceTokens(
         raw,
-        ['壁', 'wall', 'walls', 'せき', '塀', 'かき', 'かけ', 'かぎ', 'floor', 'floors', 'foundation', 'base', quantityEvidenceToken]
+        ['wall', 'walls', 'floor', 'floors', 'foundation', 'base', quantityEvidenceToken]
       );
       interpretationEvidence = interpretationEvidenceTokens.join(' / ');
       return {
@@ -651,7 +686,7 @@ function isBuildingCommand(text) {
     if (hasChimney) {
       interpretationEvidenceTokens = collectEvidenceTokens(
         raw,
-        ['煙突', 'chimney', 'smokestack', quantityEvidenceToken]
+        ['chimney', 'smokestack', quantityEvidenceToken]
       );
       interpretationEvidence = interpretationEvidenceTokens.join(' / ');
       return {
@@ -666,7 +701,7 @@ function isBuildingCommand(text) {
     if (hasDoor) {
       interpretationEvidenceTokens = collectEvidenceTokens(
         raw,
-        ['門', 'とびら', 'door', 'doors', 'entrance', '入口', quantityEvidenceToken]
+        ['door', 'doors', 'entrance', quantityEvidenceToken]
       );
       interpretationEvidence = interpretationEvidenceTokens.join(' / ');
       return {
@@ -681,7 +716,7 @@ function isBuildingCommand(text) {
     if (hasColumn) {
       interpretationEvidenceTokens = collectEvidenceTokens(
         raw,
-        ['柱', 'column', 'columns', 'pillar', 'pillars', '支柱', quantityEvidenceToken]
+        ['column', 'columns', 'pillar', 'pillars', quantityEvidenceToken]
       );
       interpretationEvidence = interpretationEvidenceTokens.join(' / ');
       return {
@@ -696,7 +731,7 @@ function isBuildingCommand(text) {
     if (hasWindow) {
       interpretationEvidenceTokens = collectEvidenceTokens(
         raw,
-        ['窓', 'window', 'windows', 'glass', 'ガラス', 'まど', quantityEvidenceToken]
+        ['window', 'windows', 'glass', quantityEvidenceToken]
       );
       interpretationEvidence = interpretationEvidenceTokens.join(' / ');
       return {
@@ -711,7 +746,7 @@ function isBuildingCommand(text) {
     if (hasHouse) {
       interpretationEvidenceTokens = collectEvidenceTokens(
         raw,
-        ['家', '建築', '建てて', '建て', '設置', '置いて', '置く', '作って', '作成', 'house', 'home', quantityEvidenceToken]
+        ['house', 'home', quantityEvidenceToken]
       );
       interpretationEvidence = interpretationEvidenceTokens.join(' / ');
       return {
@@ -768,7 +803,7 @@ function startCommandLineup(options = {}) {
 
   if (commandSession.active || completed) {
     if (!silentIfActive) {
-      addMessage(commandSession.active ? 'すでに作業中です。' : '作業は既に完了しています。');
+      addMessage(commandSession.active ? 'Already working.' : 'All tasks are already complete.');
     }
     return;
   }
@@ -776,7 +811,7 @@ function startCommandLineup(options = {}) {
   resetCommandResultLog();
   const ordered = getFrontOrderedNpcs();
   if (!ordered.length) {
-    addMessage('子供が見つかりません。');
+    addMessage('No child available.');
     return;
   }
 
@@ -807,7 +842,7 @@ function startCommandLineup(options = {}) {
   setListeningNpc(firstQueued);
 
   updateCommandButtons();
-  addMessage('作業を開始します。');
+  addMessage('Commanding start.');
   
   // 先頭の子供を点滅させる
   if (typeof window.startBlinking === 'function') {
@@ -822,19 +857,19 @@ function receiveHeroCommand(text) {
   if (!spoken) return;
 
   if (isCommandSessionCompleted()) {
-    addMessage('作業は完了しています。');
+    addMessage('All tasks are already complete.');
     return;
   }
 
   if (!commandSession.active) {
-    addMessage('作業が開始されていません。');
+    addMessage('Commanding is not started yet.');
     return;
   }
 
   const targetNpc = commandSession.queue[commandSession.cursor];
   if (!targetNpc) {
     commandSession.active = false;
-    addMessage('すでに作業の割当は完了しています。');
+    addMessage('Task assignment is already done.');
     return;
   }
 
@@ -894,7 +929,7 @@ function receiveHeroCommand(text) {
   if (commandSession.cursor >= commandSession.queue.length) {
     allOrdersReceived = true;
     commandSession.active = false;
-    addMessage(`作業完了: ${targetNpc.id} が最後の子です。`);
+    addMessage(`Work complete: Child ${targetNpc.id} is the last one.`);
     
     // 点滅を停止
       if (typeof stopBlinking === 'function') {
@@ -911,7 +946,7 @@ function receiveHeroCommand(text) {
     }
 
     const next = commandSession.queue[commandSession.cursor];
-    addMessage(`子${targetNpc.id} が作業を受理。次は子${next.id}`);
+    addMessage(`Child ${targetNpc.id} accepted the task. Next is Child ${next.id}.`);
     if (wasFirstBuilder && !firstBuilderAudioPaused) {
       firstBuilderAudioPaused = true;
       pauseMicForBuildAndResumeNextChild(true);
@@ -981,7 +1016,7 @@ function drawCommandResultPanel() {
 
   ctx.fillStyle = '#f1f6ff';
   ctx.font = '10px "Courier New", monospace';
-  ctx.fillText('コマンド結果', x + 6, y + 16);
+  ctx.fillText('Command Result', x + 6, y + 16);
 
   let rowY = y + 30;
 
@@ -990,18 +1025,18 @@ function drawCommandResultPanel() {
     const evidence = interpretationTokens.length
       ? interpretationTokens.join(', ')
       : item.interpretationEvidence;
-    const interpreted = `${item.interpreted}${item.quantity > 1 ? ` / 個数:${item.quantity}つ` : ''}`;
-    const hasHeard = String(item.heard || '').trim() && String(item.heard).trim() !== '未受信';
+    const interpreted = `${item.interpreted}${item.quantity > 1 ? ` / Count:${item.quantity}` : ''}`;
+    const hasHeard = String(item.heard || '').trim() && String(item.heard).trim() !== 'Not received';
 
-    ctx.fillText(`子${item.childId}`, x + 6, rowY);
+    ctx.fillText(`Child ${item.childId}`, x + 6, rowY);
     rowY += rowHeight;
-    ctx.fillText(`  認識: ${truncateText(item.heard, COMMAND_LINE.textDisplayMaxLen)}`, x + 6, rowY);
+    ctx.fillText(`  Heard: ${truncateText(item.heard, COMMAND_LINE.textDisplayMaxLen)}`, x + 6, rowY);
     rowY += rowHeight;
     if (!hasHeard && evidence) {
-      ctx.fillText(`  根拠: ${truncateText(evidence, COMMAND_LINE.textDisplayMaxLen)}`, x + 6, rowY);
+      ctx.fillText(`  Evidence: ${truncateText(evidence, COMMAND_LINE.textDisplayMaxLen)}`, x + 6, rowY);
       rowY += rowHeight;
     }
-    ctx.fillText(`  解釈: ${truncateText(interpreted, COMMAND_LINE.textDisplayMaxLen)}`, x + 6, rowY);
+    ctx.fillText(`  Interpretation: ${truncateText(interpreted, COMMAND_LINE.textDisplayMaxLen)}`, x + 6, rowY);
     rowY += rowHeight;
   }
 }
@@ -1045,5 +1080,5 @@ function resetCommandResultLog() {
 function toggleCommandResultPanel() {
   showCommandResults = !showCommandResults;
   updateCommandButtons();
-  addMessage(showCommandResults ? '結果表示: ON' : '結果表示: OFF');
+  addMessage(showCommandResults ? 'Command Log: ON' : 'Command Log: OFF');
 }

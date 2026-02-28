@@ -157,7 +157,7 @@
     if (!micButton) return;
     micActive = active;
     micButton.disabled = false;
-    micButton.textContent = active ? 'マイク停止' : 'START';
+    micButton.textContent = active ? 'STOP' : 'START';
   }
 
   function postMessage(text) {
@@ -254,10 +254,10 @@
 
   async function toWavBlob(sourceBlob) {
     if (!sourceBlob || !sourceBlob.size) {
-      throw new Error('変換対象の音声データがありません');
+      throw new Error('No audio source data to convert');
     }
     if (!window.AudioContext && !window.webkitAudioContext) {
-      throw new Error('AudioContextが利用できないためWAV変換をスキップします');
+      throw new Error('WAV conversion skipped because AudioContext is unavailable');
     }
 
     const arrayBuffer = await sourceBlob.arrayBuffer();
@@ -268,7 +268,7 @@
       audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
     } catch (err) {
       await audioCtx.close().catch(() => {});
-      throw new Error(`WAV変換用デコード失敗: ${String(err && err.message ? err.message : err)}`);
+      throw new Error(`WAV conversion decode failed: ${String(err && err.message ? err.message : err)}`);
     }
 
     try {
@@ -328,7 +328,7 @@
 
   function pcmToWavBlob(int16Chunks, sampleRate, channelCount = 1) {
     if (!int16Chunks.length) {
-      throw new Error('音声データがありません');
+      throw new Error('No audio data');
     }
     const merged = new Int16Array(int16Chunks.reduce((sum, chunk) => sum + chunk.length, 0));
     let offset = 0;
@@ -500,10 +500,10 @@
   function startPcmCapture(stream) {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) {
-      throw new Error('AudioContextが利用できません');
+      throw new Error('AudioContext is unavailable');
     }
     if (!stream) {
-      throw new Error('音声入力ストリームがありません');
+      throw new Error('No audio input stream');
     }
 
     liveAudioContext = new AudioCtx();
@@ -584,7 +584,7 @@
 
   async function readStreamingText(response, onChunk, extractor) {
     if (!response.body) {
-      throw new Error('ストリーミングレスポンスボディがありません');
+      throw new Error('Streaming response body is missing');
     }
 
     const reader = response.body.getReader();
@@ -1119,7 +1119,7 @@
       const speechText = heroSpeechCandidate;
       heroSpeechCandidate = '';
       notifyHeroSpeech(speechText);
-      postMessage(`文字起こし(確定): ${speechText}`);
+      postMessage(`Transcription (confirmed): ${speechText}`);
     }, HERO_SPEECH_IDLE_MS);
   }
 
@@ -1287,7 +1287,7 @@
     }
 
     if (!isAudioConfigReady()) {
-      throw new Error('音声APIの設定がありません');
+      throw new Error('Audio API configuration is missing');
     }
     if (!blob || !blob.size) {
       return '';
@@ -1359,7 +1359,7 @@
           }
         }
         if (!requestBlob || !requestBlob.size) {
-          throw new Error(`変換後の音声データが空です: kind=${kind}`);
+          throw new Error(`Converted audio data is empty: kind=${kind}`);
         }
       } catch (err) {
         logDebug('audio wav convert failed', {
@@ -1477,7 +1477,7 @@
           });
           continue;
         }
-        throw new Error(`音声API ${res.status}: ${detail}`);
+        throw new Error(`Audio API ${res.status}: ${detail}`);
       }
 
       let resultText = '';
@@ -1619,15 +1619,15 @@
 
   async function startMicCapture() {
     if (!navigator.mediaDevices || !window.MediaRecorder) {
-      postMessage('このブラウザはMediaRecorderをサポートしていません。');
+      postMessage('This browser does not support MediaRecorder.');
       return;
     }
     if (!isAudioConfigReady()) {
-      postMessage('音声API未設定: window.__MISTRAL_API_KEY または window.__MISTRAL_PROXY_URL を設定してください。');
+      postMessage('Audio API is not set. Set window.__MISTRAL_API_KEY or window.__MISTRAL_PROXY_URL.');
       return;
     }
     if (isRequesting) {
-      postMessage('AI応答中は一時的にSTARTをブロックします。');
+      postMessage('AI is responding. START is temporarily disabled.');
       return;
     }
     if (micActive) {
@@ -1671,7 +1671,7 @@
       liveChunkBytes = 0;
       livePcmSilenceFrames = 0;
       lastAudioChunk = null;
-      postMessage('音声入力を開始しました。しゃべるとリアルタイムで文字起こしします。');
+      postMessage('Voice input started. Speak to transcribe in real time.');
       setMicBusy(true);
       notifyHeroListening(true);
       if (gameApi && typeof gameApi.startCommandLineup === 'function') {
@@ -1701,7 +1701,7 @@
 
       mediaRecorder.onerror = (event) => {
         console.error('[Voxtral] recorder error', event.error);
-        postMessage(`音声入力エラー: ${String(event.error && event.error.message ? event.error.message : 'unknown')}`);
+        postMessage(`Voice input error: ${String(event.error && event.error.message ? event.error.message : 'unknown')}`);
       };
 
       if (USE_PCM_LIVE_CAPTURE && PCM_LIVE_AS_LIVE_SOURCE) {
@@ -1731,7 +1731,7 @@
         mediaStream.getTracks().forEach((t) => t.stop());
         mediaStream = null;
       }
-      postMessage(`音声開始失敗: ${String(err.message || err)}`);
+      postMessage(`Failed to start voice input: ${String(err.message || err)}`);
     }
   }
 
@@ -1857,14 +1857,14 @@
         text: transcriptionText,
       });
     } else if (!LIVE_ONLY_PIPELINE && finalize) {
-      postMessage('音声文字起こし: 0文字');
+      postMessage('Transcription result: 0 characters');
     }
   }
 
   function setupIntegration(api) {
     if (!api || typeof api !== 'object') {
       gameApi = null;
-      postMessage('VoxtralはゲームAPI未接続です。');
+      postMessage('Voxtral is not connected to game API.');
       return;
     }
     gameApi = api;
@@ -1877,7 +1877,7 @@
       audioModelCandidates: getAudioModelCandidates(),
     });
     if (!isConfigReady()) {
-      postMessage('音声APIは未接続です: window.__MISTRAL_API_KEY または window.__MISTRAL_PROXY_URL を設定してください。');
+      postMessage('Audio API is not connected. Set window.__MISTRAL_API_KEY or window.__MISTRAL_PROXY_URL.');
     }
     logDebug('setupIntegration', {
       hasSetMessage: !!(gameApi && typeof gameApi.setMessage === 'function'),
@@ -1905,28 +1905,28 @@
 
   async function sendTestAudio(filePath) {
     if (isRequesting) {
-      logDebug('前のリクエストが完了していません');
+      logDebug('previous request is still in progress');
       return;
     }
 
     try {
       isRequesting = true;
-      logDebug(`テストオーディオ送信開始: ${filePath}`);
+      logDebug(`test audio send start: ${filePath}`);
 
       const response = await fetch(filePath);
       if (!response.ok) {
-        throw new Error(`ファイル読み込み失敗: ${response.status} - ${filePath}`);
+        throw new Error(`Failed to load file: ${response.status} - ${filePath}`);
       }
 
       const audioBlob = await response.blob();
-      logDebug(`オーディオファイル読み込み完了: ${audioBlob.size} bytes, type: ${audioBlob.type}`);
+      logDebug(`audio file loaded: ${audioBlob.size} bytes, type: ${audioBlob.type}`);
 
       const resultText = await sendTranscriptionChunk(audioBlob, {
         noStream: true,
         minBytes: 1,
       });
       if (!resultText || !resultText.trim()) {
-        postMessage('テスト音声: 0文字（文字起こしできませんでした）');
+        postMessage('Test audio: 0 characters (no transcription)');
         return;
       }
 
@@ -1944,10 +1944,10 @@
           });
         });
       }
-      logDebug(`認識テキスト: ${transcriptionText}`);
+      logDebug(`recognized text: ${transcriptionText}`);
     } catch (error) {
-      logDebug('テストオーディオ送信エラー:', error);
-      postMessage(`テスト音声処理失敗: ${String(error && error.message ? error.message : error)}`);
+      logDebug('test audio send error:', error);
+      postMessage(`Test audio processing failed: ${String(error && error.message ? error.message : error)}`);
     } finally {
       isRequesting = false;
     }

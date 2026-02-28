@@ -49,7 +49,7 @@ const palette = {
   houseWindow: '#fdf8b8',
 };
 
-const HOUSE_ROOF_SHAPES = ['round', 'triangle', 'flat'];
+const HOUSE_ROOF_SHAPES = ['triangle', 'flat', 'round', 'gable', 'hip', 'shed'];
 const DEFAULT_ROOF_SHAPE = 'triangle';
 const DEFAULT_GOAL_POSITION_TOLERANCE = 8;
 
@@ -85,7 +85,7 @@ const HOUSE_PART_BLUEPRINT_BY_GOAL_ID = {
 const GOAL_PATTERNS = [
   {
     goalId: 'goal-red-roof-3columns-door-strict',
-    name: '赤い屋根・左ドア',
+    name: 'Red Roof, Left Door',
     version: '1.0',
     parts: [
       {
@@ -114,7 +114,7 @@ const GOAL_PATTERNS = [
   },
   {
     goalId: 'goal-red-roof-3columns-door',
-    name: '赤い屋根・柱3本・中央ドア',
+    name: 'Red Roof, 3 Pillars, Center Door',
     version: '1.0',
     parts: [
       {
@@ -152,7 +152,7 @@ const GOAL_PATTERNS = [
   },
   {
     goalId: 'goal-blue-flat-roof-window2',
-    name: '青い平屋根・窓2つ',
+    name: 'Blue Flat Roof, 2 Windows',
     version: '1.0',
     parts: [
       {
@@ -187,7 +187,7 @@ const GOAL_PATTERNS = [
   },
   {
     goalId: 'goal-green-round-chimney',
-    name: '緑の丸屋根・煙突',
+    name: 'Green Round Roof, Chimney',
     version: '1.0',
     parts: [
       {
@@ -579,30 +579,30 @@ const NPC_ACTIVITY_STATES = {
 };
 
 const HOUSE_PART_LABELS = {
-  wall: '壁',
-  roof: '屋根',
-  chimney: '煙突',
-  door: '扉',
-  column: '柱',
-  window: '窓',
-  default: '部品',
+  wall: 'Wall',
+  roof: 'Roof',
+  chimney: 'Chimney',
+  door: 'Door',
+  column: 'Column',
+  window: 'Window',
+  default: 'Part',
 };
 
 const BUILD_COMMAND_RULES = [
-  { re: /壁|せき|塀|かき|かけ|かぎ|wall|walls|fence/, label: '壁/塀', partType: 'wall' },
+  { re: /壁|せき|塀|かき|かけ|かぎ|wall|walls|fence/, label: 'wall/fence', partType: 'wall' },
   {
     re: /屋根|屋たて|屋根を|屋根を?作|天井|\broof\b|\broofs\b|\broofing\b/,
-    label: '屋根',
+    label: 'roof',
     partType: 'roof',
   },
-  { re: /床|床板|土台|floor|floors|foundation|base/, label: '床', partType: 'wall' },
-  { re: /煙突|煙だ|煙突|chimney|smokestack/, label: '煙突', partType: 'chimney' },
-  { re: /門|とびら|出入口|入口|door|doors|entrance/, label: '門', partType: 'door' },
-  { re: /窓|まど|ガラス|window|windows|glass/, label: '窓', partType: 'window' },
-  { re: /柱|たて|支柱|column|columns|pillar|pillars/, label: '柱', partType: 'column' },
+  { re: /床|床板|土台|floor|floors|foundation|base/, label: 'wall', partType: 'wall' },
+  { re: /煙突|煙だ|煙突|chimney|smokestack/, label: 'chimney', partType: 'chimney' },
+  { re: /門|とびら|出入口|入口|door|doors|entrance/, label: 'door', partType: 'door' },
+  { re: /窓|まど|ガラス|window|windows|glass/, label: 'window', partType: 'window' },
+  { re: /柱|たて|支柱|column|columns|pillar|pillars/, label: 'column', partType: 'column' },
   {
     re: /家|建築|建て|建てて|設置|置いて|置く|作って|作成|house|home|build|building|construct|create|add|place/,
-    label: '建築全般',
+    label: 'house',
   },
 ];
 
@@ -818,9 +818,9 @@ function updateChildSpeechToggleButton() {
   if (!childSpeechToggleButton) return;
   childSpeechToggleButton.textContent = isChildSpeechEnabled() ? '🔊' : '🔇';
   childSpeechToggleButton.title = isChildSpeechEnabled()
-    ? '子どもセリフの再生: ON'
-    : '子どもセリフの再生: OFF';
-  childSpeechToggleButton.setAttribute('aria-label', isChildSpeechEnabled() ? '子どもセリフをON' : '子どもセリフをOFF');
+    ? 'Child Speech: ON'
+    : 'Child Speech: OFF';
+  childSpeechToggleButton.setAttribute('aria-label', isChildSpeechEnabled() ? 'Enable Child Speech' : 'Disable Child Speech');
 }
 
 function setChildSpeechEnabled(enabled) {

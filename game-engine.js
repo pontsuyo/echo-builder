@@ -5,7 +5,7 @@ function resetGame() {
   hoveredInterpretationSpeechKey = '';
   stopChildSpeech();
   clearChildSpeechState();
-  addMessage('2D Dot Meadow - リトライ可能');
+  addMessage('2D Dot Meadow - Retry Available');
   resetPlayer();
   selectRandomGoal(Date.now());
   heroSpeechBubbleUnlocked = false;
@@ -134,8 +134,8 @@ function updateNpcs(dt) {
           npc.preferredRoofShape
         );
         if (builtParts && builtParts.length > 0) {
-          const partNames = builtParts.map(part => getHousePartLabel(part.type)).join('と');
-          addMessage(`子${npc.id} が家の${partNames}を設置しました（${builtParts.length}つ）。`);
+          const partNames = builtParts.map((part) => getHousePartLabel(part.type)).join(', ');
+          addMessage(`Child ${npc.id} placed ${partNames} on the house (${builtParts.length} pcs).`);
         }
         // 家の横に留まるため、minXとmaxXを現在位置付近に設定
         npc.minX = npc.x - 10;
@@ -202,7 +202,7 @@ function checkHouseRevealTrigger() {
   }
 
   houseRevealActive = true;
-  addMessage('全員の指示が完了したので、建物のある場所へカメラを移動します。');
+  addMessage('All orders are complete. Moving camera to the building.');
 }
 
 function getBuiltHousePartSummaryText() {
@@ -229,8 +229,8 @@ function getBuiltHousePartSummaryText() {
     const requested = requestedByType[type] || 0;
     const built = builtByType[type] || 0;
     if (requested > 0 || built > 0) {
-      const label = `${HOUSE_PART_LABELS[type] || type}${requested || built}個`;
-      summaries.push(requested === 0 || requested === built ? label : `${label}(依頼:${requested} / 実施:${built})`);
+      const label = `${HOUSE_PART_LABELS[type] || type} x${requested || built}`;
+      summaries.push(requested === 0 || requested === built ? label : `${label} (requested:${requested} / built:${built})`);
     }
   }
 
@@ -238,11 +238,11 @@ function getBuiltHousePartSummaryText() {
     if (ordered.includes(type)) continue;
     const requested = requestedByType[type] || 0;
     const built = builtByType[type] || 0;
-    const label = `${HOUSE_PART_LABELS[type] || type}${requested || built}個`;
-    summaries.push(requested === 0 || requested === built ? label : `${label}(依頼:${requested} / 実施:${built})`);
+    const label = `${HOUSE_PART_LABELS[type] || type} x${requested || built}`;
+    summaries.push(requested === 0 || requested === built ? label : `${label} (requested:${requested} / built:${built})`);
   }
 
-  return summaries.length ? summaries.join('、') : '未設置';
+  return summaries.length ? summaries.join(', ') : 'Not built';
 }
 
 function updateCamera(dt) {
@@ -282,12 +282,12 @@ function updateCamera(dt) {
         }
       }
       const builtSummary = getBuiltHousePartSummaryText();
-      addMessage(`家の建設が完了。設置数: ${builtSummary}。スコア:${goalScore}。Rでリトライできます。`);
+      addMessage(`House construction complete. Built: ${builtSummary}. Score: ${goalScore}. Press R to retry.`);
       
       // 各子供の解釈を表示
       for (const child of childInterpretations) {
         if (child.interpretation) {
-          addMessage(`子${child.childId}の解釈: ${child.interpretation}`);
+          addMessage(`Child ${child.childId} interpretation: ${child.interpretation}`);
         }
       }
 
@@ -396,6 +396,28 @@ function drawHousePart(part, sx, sy) {
       ctx.fillRect(sx - 2, sy - 4, 114, 6);
       return;
     }
+    if (roofShape === 'gable') {
+      const rows = 16;
+      for (let i = 0; i < rows; i += 1) {
+        const rowY = sy - 18 + i;
+        const rowW = Math.max(20, Math.round(28 + i * 5.25));
+        const rowX = sx - 4 + (114 - rowW) / 2;
+        ctx.fillStyle = i === 0 ? '#9a352a' : palette.houseRoof;
+        ctx.fillRect(rowX, rowY, rowW, 2);
+      }
+      return;
+    }
+    if (roofShape === 'hip') {
+      const rows = 10;
+      for (let i = 0; i < rows; i += 1) {
+        const rowY = sy - 4 - i;
+        const rowW = 48 + Math.round((114 - 48) * (i / (rows - 1)));
+        const rowX = sx - 4 + Math.round((114 - rowW) / 2);
+        ctx.fillStyle = i === rows - 1 ? '#9a352a' : palette.houseRoof;
+        ctx.fillRect(rowX, rowY, rowW, 3);
+      }
+      return;
+    }
     if (roofShape === 'round') {
       const rows = 16;
       for (let i = 0; i < rows; i += 1) {
@@ -403,6 +425,17 @@ function drawHousePart(part, sx, sy) {
         const rowY = sy - 24 + i * 2;
         const rowW = Math.max(10, Math.round(114 * Math.sin(Math.PI * t)));
         const rowX = sx + (home.w - rowW) / 2;
+        ctx.fillStyle = i === 0 ? '#9a352a' : palette.houseRoof;
+        ctx.fillRect(rowX, rowY, rowW, 2);
+      }
+      return;
+    }
+    if (roofShape === 'shed') {
+      const rows = 12;
+      for (let i = 0; i < rows; i += 1) {
+        const rowY = sy - 4 - i;
+        const rowX = sx - 4 + Math.round(i * 1.2);
+        const rowW = Math.max(20, 114 - Math.round(i * 2));
         ctx.fillStyle = i === 0 ? '#9a352a' : palette.houseRoof;
         ctx.fillRect(rowX, rowY, rowW, 2);
       }
@@ -451,7 +484,7 @@ function drawHousePart(part, sx, sy) {
 function getGoalHintTextLines() {
   const goal = typeof getActiveGoalForUi === 'function' ? getActiveGoalForUi() : activeGoal;
   if (!goal) {
-    return ['未設定'];
+    return ['Not set'];
   }
 
   const toRequiredText = (target) => {
@@ -475,22 +508,22 @@ function getGoalHintTextLines() {
   };
 
   const lines = [];
-  lines.push(`目標: ${goal.name || goal.goalId}`);
+  lines.push(`Goal: ${goal.name || goal.goalId}`);
 
   for (const rule of goal.parts || []) {
-    const type = HOUSE_PART_LABELS[rule.partType] || rule.partType || '部品';
+    const type = HOUSE_PART_LABELS[rule.partType] || rule.partType || 'Part';
     const req = toRequiredText(rule.requiredCount);
-    let detail = `${type}${req}個`;
+    let detail = `${type} x${req}`;
 
     if (rule.targetColorHex) {
-      detail += ` / 色:${rule.targetColorHex}`;
+      detail += ` / Color:${rule.targetColorHex}`;
     }
     if (rule.targetRoofShape) {
-      detail += ` / 屋根:${rule.targetRoofShape}`;
+      detail += ` / Roof:${rule.targetRoofShape}`;
     }
     if (rule.positionRule && rule.positionRule.mode === 'x-center') {
       const tol = Number(rule.positionRule.tolerancePx) || DEFAULT_GOAL_POSITION_TOLERANCE;
-      detail += ` / 中央±${tol}px`;
+      detail += ` / Center±${tol}px`;
     }
 
     lines.push(detail);
@@ -500,10 +533,10 @@ function getGoalHintTextLines() {
     const rate = Math.round((goalScoreBreakdown.idealMatchRate || 0) * 100);
     const extraPenalty = goalScoreBreakdown.extraPenalty || 0;
     const destroyPenalty = goalScoreBreakdown.destroyPenalty || 0;
-    lines.push(`スコア: ${goalScore}点（一致率:${rate}%）`);
-    lines.push(`追加罰則: ${extraPenalty + destroyPenalty}点`);
+    lines.push(`Score: ${goalScore} pts (match:${rate}%)`);
+    lines.push(`Penalty: ${extraPenalty + destroyPenalty} pts`);
   } else if (goalScoreBreakdown && typeof goalScore === 'number') {
-    lines.push(`暫定スコア: ${goalScore}点`);
+    lines.push(`Provisional score: ${goalScore} pts`);
   }
 
   return lines;
@@ -1108,7 +1141,7 @@ function getHeardTranscriptRowsForDock(commandRows = []) {
   const segments = [];
   for (const row of commandRows) {
     const heard = String(row && row.heard ? row.heard : '').trim();
-    if (!heard || heard === '未受信') {
+    if (!heard || heard === 'Not received' || heard === '未受信') {
       continue;
     }
 
@@ -1291,7 +1324,7 @@ function getClearCommandResultLines() {
     return lines;
   }
 
-  lines.push('認識と根拠');
+  lines.push('Recognition and Evidence');
   for (const item of rows) {
     const heard = String(item.heard || '');
     const evidenceTokens = Array.isArray(item.interpretationEvidenceTokens)
@@ -1300,15 +1333,15 @@ function getClearCommandResultLines() {
     const evidence = evidenceTokens.length ? evidenceTokens.join(', ') : String(item.interpretationEvidence || '');
     const interpreted = String(item.interpreted || '');
     const childId = Number.isFinite(Number(item.childId)) ? Number(item.childId) : item.childId;
-    if (!heard || heard === '未受信') {
+    if (!heard || heard === 'Not received' || heard === '未受信') {
       continue;
     }
-    lines.push(`子${childId} 認識="${truncateForClearText(heard, 28)}"`);
+    lines.push(`Child ${childId} heard="${truncateForClearText(heard, 28)}"`);
     if (evidence) {
-      lines.push(`  根拠="${truncateForClearText(evidence, 28)}"`);
+      lines.push(`  Evidence="${truncateForClearText(evidence, 28)}"`);
     }
     if (interpreted) {
-      lines.push(`  解釈="${truncateForClearText(interpreted, 28)}"`);
+      lines.push(`  Interpretation="${truncateForClearText(interpreted, 28)}"`);
     }
   }
 
@@ -1975,7 +2008,7 @@ function draw() {
     if (houseRevealDone) {
       const commandRow = commandRowsById.get(e.id) || null;
       const interpreted = String(commandRow && commandRow.interpreted ? commandRow.interpreted : '').trim();
-      if (interpreted && interpreted !== '未受信') {
+      if (interpreted && interpreted !== 'Not received' && interpreted !== '未受信') {
         const interpretationRect = getInterpretationSpeechBubbleRect(e, sx, interpreted, e.id);
         drawInterpretationSpeechBubble(e, sx, interpreted, opacity, e.id);
 
@@ -2055,7 +2088,7 @@ function draw() {
       ctx.fillText(`ID${npc.id}: X${Math.floor(npc.x)} Y${Math.floor(npc.y)} ${npc.commandState}`, W - 200, 50 + i * 20);
     });
 
-    ctx.fillText('音声debug:', 8, 66);
+    ctx.fillText('Voice debug:', 8, 66);
     ctx.fillText(liveTranscriptLine, 8, 82);
   }
 
@@ -2176,7 +2209,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 resetGame();
-addMessage('2D Dot Meadow - ゆっくり散歩するドット世界');
+addMessage('2D Dot Meadow - Slow Walking Pixel World');
 requestAnimationFrame((now) => {
   lastTime = now;
   requestAnimationFrame(loop);
