@@ -871,6 +871,13 @@ function receiveHeroCommand(text) {
   targetNpc.workStartSpeech = createWorkStartSpeech(spoken, parsed);
   targetNpc.workStartSpeechUntil = performance.now() + Number(COMMAND_LINE.workStartSpeechDurationMs || 2800);
 
+  if (typeof window.playChildSpeech === 'function') {
+    window.playChildSpeech(targetNpc.workStartSpeech, {
+      childId: targetNpc.id,
+      context: 'command',
+    });
+  }
+
   // 解釈データを更新（英語で表記）
   if (targetNpc.lastInterpretation) {
     updateChildInterpretation(targetNpc.id, targetNpc.lastInterpretation, {

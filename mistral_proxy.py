@@ -72,6 +72,11 @@ API_KEY = os.getenv("MISTRAL_API_KEY", "").strip()
 HOST = os.getenv("MISTRAL_PROXY_HOST", "127.0.0.1")
 PORT = int(os.getenv("MISTRAL_PROXY_PORT", "8001"))
 CORS_ORIGIN = os.getenv("MISTRAL_PROXY_CORS_ORIGIN", "*")
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "").strip()
+ELEVENLABS_API_BASE = os.getenv("ELEVENLABS_API_BASE", "https://api.elevenlabs.io").rstrip("/")
+ELEVENLABS_DEFAULT_VOICE_ID = os.getenv("ELEVENLABS_DEFAULT_VOICE_ID", "21m00Tcm4TlvDq8ikWAM").strip()
+ELEVENLABS_DEFAULT_TTS_MODEL = os.getenv("ELEVENLABS_DEFAULT_TTS_MODEL", "eleven_multilingual_v2").strip()
+ELEVENLABS_DEFAULT_TTS_FORMAT = os.getenv("ELEVENLABS_DEFAULT_TTS_FORMAT", "mp3_44100_128").strip()
 FFMPEG_REENCODE_TO_WAV = os.getenv("MISTRAL_PROXY_REENCODE_TO_WAV", "").strip().lower() in {
     "1",
     "true",
@@ -320,6 +325,19 @@ def _log_upstream_error(exc: Exception, path: str, upstream_url: str):
     logger.debug("TRACEBACK: %s", traceback.format_exc())
 
 
+def _build_voice_settings(settings) -> Optional[dict]:
+    if not isinstance(settings, dict):
+        return None
+
+    sanitized = {}
+    for key, value in settings.items():
+        if value is None:
+            continue
+        sanitized[str(key)] = value
+
+    return sanitized
+
+
 @app.after_request
 def ensure_cors(response):
     return add_cors_headers(response)
@@ -482,6 +500,102 @@ def chat_completions() -> Response:
 @app.route("/v1/audio/transcriptions", methods=["POST", "OPTIONS"])
 def transcriptions() -> Response:
     return proxy_request("/v1/audio/transcriptions")
+
+
+@app.route("/v1/text-to-speech", methods=["POST", "OPTIONS"])
+def text_to_speech() -> Response:
+    if request.method == "OPTIONS":
+        return add_cors_headers(Response("", status=204))
+
+    if not ELEVENLABS_API_KEY:
+        logger.error("REQ id=%s missing ELEVENLABS_API_KEY", g.request_id)
+        response = jsonify({"error": {"message": "ELEVENLABS_API_KEY is not set on proxy server"}})
+        response.status_code = 500
+        return add_cors_headers(response)
+
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        payload = {}
+
+    text = str(payload.get("text", "")).strip()
+    if not text:
+        response = jsonify({"error": {"message": "text is required"}})
+        response.status_code = 400
+        return add_cors_headers(response)
+
+    voice_id = str(payload.get("voice_id", "")).strip() or ELEVENLABS_DEFAULT_VOICE_ID
+    if not voice_id:
+        response = jsonify({"error": {"message": "voice_id is required"}})
+        response.status_code = 400
+        return add_cors_headers(response)
+
+    model_id = str(payload.get("model_id", "")).strip() or ELEVENLABS_DEFAULT_TTS_MODEL
+    output_format = str(payload.get("output_format", "")).strip() or ELEVENLABS_DEFAULT_TTS_FORMAT
+    voice_settings = _build_voice_settings(payload.get("voice_settings"))
+
+    upstream_url = f"{ELEVENLABS_API_BASE}/v1/text-to-speech/{voice_id}"
+    body = {
+        "text": text,
+    }
+    if model_id:
+        body["model_id"] = model_id
+    if output_format:
+        body["output_format"] = output_format
+    if voice_settings:
+        body["voice_settings"] = voice_settings
+    if payload.get("optimize_streaming_latency") is not None:
+        body["optimize_streaming_latency"] = payload.get("optimize_streaming_latency")
+
+    try:
+        upstream = requests.post(
+            upstream_url,
+            headers={
+                "xi-api-key": ELEVENLABS_API_KEY,
+                "Content-Type": "application/json",
+            },
+            json=body,
+            stream=True,
+            timeout=120,
+        )
+    except requests.RequestException as exc:
+        _log_upstream_error(exc, request.path, upstream_url)
+        response = jsonify({
+            "error": {
+                "message": f"Failed to request ElevenLabs API: {exc}",
+            }
+        })
+        response.status_code = 502
+        return add_cors_headers(response)
+
+    content_type = upstream.headers.get("content-type", "")
+    logger.debug(
+        "ELEVENLABS_UPSTREAM id=%s status=%s content_type=%s",
+        g.request_id,
+        upstream.status_code,
+        content_type,
+    )
+
+    if upstream.status_code >= 400:
+        logger.error(
+            "ELEVENLABS_UPSTREAM ERROR id=%s status=%s body=%s",
+            g.request_id,
+            upstream.status_code,
+            _short(upstream.text),
+        )
+        response = Response(
+            upstream.text,
+            status=upstream.status_code,
+            content_type=content_type or "text/plain; charset=utf-8",
+        )
+        return add_cors_headers(response)
+
+    return add_cors_headers(
+        Response(
+            iter_response_chunks(upstream),
+            status=upstream.status_code,
+            content_type=content_type or "audio/mpeg",
+        )
+    )
 
 
 @app.errorhandler(Exception)

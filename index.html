@@ -63,11 +63,25 @@
         cursor: pointer;
       }
 
-      .debug-button {
+      .overlay-controls {
         position: fixed;
         top: 10px;
         left: 10px;
         z-index: 20;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .debug-button {
+        border: 1px solid #44567c;
+        background: #1c2e4b;
+        color: #d9e6ff;
+      }
+
+      .speech-toggle-button {
+        min-width: 34px;
+        text-align: center;
       }
 
       /* テストボタン用スタイル */
@@ -84,7 +98,17 @@
     </style>
   </head>
   <body>
-    <button id="toggle-debug-overlay" class="debug-button">debug: ON</button>
+    <div class="overlay-controls">
+      <button id="toggle-debug-overlay" class="debug-button">debug: ON</button>
+      <button
+        id="toggle-child-speech"
+        class="debug-button speech-toggle-button"
+        title="子どもセリフの再生: ON/OFF"
+        aria-label="子どもセリフの再生を切り替える"
+      >
+        🔊
+      </button>
+    </div>
 
     <div id="wrap">
       <canvas id="game" width="640" height="360"></canvas>
@@ -102,6 +126,10 @@
       // Voxtral/APIキーはブラウザ直書き禁止（開発はローカルプロキシ経由）
       window.__MISTRAL_PROXY_URL = 'http://127.0.0.1:8001';
       window.__MISTRAL_PROXY_AUDIO_URL = 'http://127.0.0.1:8001';
+      window.__ELEVENLABS_PROXY_URL = 'http://127.0.0.1:8001';
+      window.__ELEVENLABS_TTS_MODEL_ID = 'eleven_multilingual_v2';
+      window.__ELEVENLABS_TTS_OUTPUT_FORMAT = 'mp3_44100_128';
+      window.__ELEVENLABS_TTS_ENABLED = false;
       window.__MISTRAL_DEBUG = true;
     </script>
     <script src="voxtral.js?v=3" defer></script>

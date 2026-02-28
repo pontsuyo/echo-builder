@@ -2,6 +2,9 @@ function resetGame() {
   clear = false;
   houseRevealMicStopped = false;
   scorePopupShownAt = 0;
+  hoveredInterpretationSpeechKey = '';
+  stopChildSpeech();
+  clearChildSpeechState();
   addMessage('2D Dot Meadow - リトライ可能');
   resetPlayer();
   selectRandomGoal(Date.now());
@@ -39,6 +42,32 @@ let houseRevealMicStopped = false;
 let scorePopupShownAt = 0;
 let pointerCanvasX = -1;
 let pointerCanvasY = -1;
+let activeChildSpeechAudio = null;
+let activeChildSpeechKey = '';
+let childSpeechRequestSeq = 0;
+let hoveredInterpretationSpeechKey = '';
+const MAX_CHILD_SPEECH_CACHE = 10;
+
+const ELEVENLABS_TTS_ENDPOINT = (() => {
+  const configuredUrl = String(window.__ELEVENLABS_PROXY_URL || window.__MISTRAL_PROXY_URL || '').trim();
+  if (!configuredUrl) {
+    return '';
+  }
+  return `${configuredUrl.replace(/\/$/, '')}/v1/text-to-speech`;
+})();
+
+const ELEVENLABS_TTS_VOICE_ID = String(window.__ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM').trim();
+const ELEVENLABS_TTS_MODEL_ID = String(window.__ELEVENLABS_TTS_MODEL_ID || 'eleven_multilingual_v2').trim();
+const ELEVENLABS_TTS_OUTPUT_FORMAT = String(window.__ELEVENLABS_TTS_OUTPUT_FORMAT || 'mp3_44100_128').trim();
+const childSpeechCache = new Map();
+const childSpeechInflight = new Map();
+
+function isChildSpeechPlaybackEnabled() {
+  if (typeof window.isChildSpeechEnabled === 'function') {
+    return Boolean(window.isChildSpeechEnabled());
+  }
+  return Boolean(window.__ELEVENLABS_TTS_ENABLED ?? true);
+}
 
 function stopHouseRevealMicIfNeeded() {
   if (houseRevealMicStopped) {
@@ -864,6 +893,177 @@ function isPointInsideRect(px, py, rect) {
     && px <= rect.x + rect.w
     && py <= rect.y + rect.h;
 }
+
+function parseJson(value, fallback = null) {
+  if (typeof value === 'object' && value) {
+    return value;
+  }
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  try {
+    const parsed = JSON.parse(value);
+    return parsed;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function normalizeChildSpeechText(text) {
+  return String(text || '').replace(/\s+/g, ' ').trim();
+}
+
+function buildTtsPayload(text) {
+  const payload = {
+    text: normalizeChildSpeechText(text),
+    voice_id: ELEVENLABS_TTS_VOICE_ID,
+    model_id: ELEVENLABS_TTS_MODEL_ID,
+    output_format: ELEVENLABS_TTS_OUTPUT_FORMAT,
+  };
+  const settings = parseJson(window.__ELEVENLABS_VOICE_SETTINGS, {
+    stability: 0.47,
+    similarity_boost: 0.75,
+    style: 0,
+    use_speaker_boost: true,
+  });
+  if (settings && typeof settings === 'object') {
+    payload.voice_settings = settings;
+  }
+  return payload;
+}
+
+function pruneSpeechCache() {
+  while (childSpeechCache.size > MAX_CHILD_SPEECH_CACHE) {
+    const oldestKey = childSpeechCache.keys().next().value;
+    if (!oldestKey) {
+      break;
+    }
+    const entry = childSpeechCache.get(oldestKey);
+    if (entry && entry.url) {
+      URL.revokeObjectURL(entry.url);
+    }
+    childSpeechCache.delete(oldestKey);
+  }
+}
+
+function clearChildSpeechState() {
+  childSpeechInflight.clear();
+  childSpeechCache.forEach((entry) => {
+    if (entry && entry.url) {
+      URL.revokeObjectURL(entry.url);
+    }
+  });
+  childSpeechCache.clear();
+}
+
+async function fetchChildSpeechUrl(text) {
+  const normalized = normalizeChildSpeechText(text);
+  if (!normalized || !ELEVENLABS_TTS_ENDPOINT) {
+    return '';
+  }
+
+  if (childSpeechCache.has(normalized)) {
+    const entry = childSpeechCache.get(normalized);
+    return entry.url;
+  }
+
+  if (childSpeechInflight.has(normalized)) {
+    return childSpeechInflight.get(normalized);
+  }
+
+  const requestPromise = (async () => {
+    try {
+      const response = await fetch(ELEVENLABS_TTS_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(buildTtsPayload(normalized)),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`elevenlabs tts failed status=${response.status} ${String(errorText || '').slice(0, 120)}`);
+      }
+
+      const blob = await response.blob();
+      if (!blob || !blob.size) {
+        throw new Error('empty audio response from elevenlabs');
+      }
+
+      const url = URL.createObjectURL(blob);
+      childSpeechCache.set(normalized, { url });
+      pruneSpeechCache();
+      return url;
+    } catch (error) {
+      console.warn('[Speech]', error);
+      return '';
+    } finally {
+      childSpeechInflight.delete(normalized);
+    }
+  })();
+
+  childSpeechInflight.set(normalized, requestPromise);
+  return requestPromise;
+}
+
+function stopChildSpeech() {
+  if (activeChildSpeechAudio) {
+    try {
+      activeChildSpeechAudio.pause();
+      activeChildSpeechAudio.currentTime = 0;
+    } catch (error) {
+      // noop
+    }
+  }
+  activeChildSpeechAudio = null;
+  activeChildSpeechKey = '';
+}
+
+function playChildSpeech(text, options = {}) {
+  const normalized = normalizeChildSpeechText(text);
+  if (!normalized || !ELEVENLABS_TTS_ENDPOINT || !isChildSpeechPlaybackEnabled()) {
+    return;
+  }
+
+  const childId = Number.isFinite(Number(options.childId)) ? Number(options.childId) : 'x';
+  const key = `${String(options.context || 'speech')}:${childId}:${normalized}`;
+  if (activeChildSpeechAudio && activeChildSpeechKey === key && !options.force) {
+    return;
+  }
+
+  const seq = ++childSpeechRequestSeq;
+  void (async () => {
+    const audioUrl = await fetchChildSpeechUrl(normalized);
+    if (!audioUrl || childSpeechRequestSeq !== seq) {
+      return;
+    }
+
+    const nextAudio = new Audio(audioUrl);
+    nextAudio.preload = 'auto';
+    stopChildSpeech();
+    activeChildSpeechAudio = nextAudio;
+    activeChildSpeechKey = key;
+
+    const finish = () => {
+      if (activeChildSpeechAudio === nextAudio) {
+        activeChildSpeechAudio = null;
+        activeChildSpeechKey = '';
+      }
+    };
+    nextAudio.addEventListener('ended', finish, { once: true });
+    nextAudio.addEventListener('error', finish, { once: true });
+
+    try {
+      await nextAudio.play();
+    } catch (error) {
+      finish();
+    }
+  })();
+}
+
+window.playChildSpeech = playChildSpeech;
+window.stopChildSpeech = stopChildSpeech;
 
 function updatePointerCanvasPosition(event) {
   if (!canvas || !event) {
@@ -1737,6 +1937,7 @@ function draw() {
     commandRowsById.set(id, row);
   }
   let hoveredInterpretationRow = null;
+  let hoveredInterpretationSpeech = null;
 
   for (const e of sortedNpcs) {
     const sx = e.x - cameraX;
@@ -1786,9 +1987,31 @@ function draw() {
               ? commandRow.interpretationEvidenceTokens
               : [],
           };
+
+          hoveredInterpretationSpeech = {
+            childId: e.id,
+            text: interpreted,
+          };
         }
       }
     }
+  }
+
+  const nextHoveredInterpretationSpeechKey = hoveredInterpretationSpeech
+    ? `c${hoveredInterpretationSpeech.childId}:${normalizeChildSpeechText(hoveredInterpretationSpeech.text)}`
+    : '';
+
+  if (clear && hoveredInterpretationSpeech && hoveredInterpretationSpeech.text) {
+    if (hoveredInterpretationSpeechKey !== nextHoveredInterpretationSpeechKey) {
+      hoveredInterpretationSpeechKey = nextHoveredInterpretationSpeechKey;
+      playChildSpeech(hoveredInterpretationSpeech.text, {
+        context: 'clear',
+        childId: hoveredInterpretationSpeech.childId,
+        force: true,
+      });
+    }
+  } else {
+    hoveredInterpretationSpeechKey = '';
   }
 
   // Hero (always on top)
@@ -1896,6 +2119,9 @@ if (resultToggleButton) {
 
 if (debugToggleButton) {
   debugToggleButton.addEventListener('click', toggleDebugOverlay);
+}
+if (typeof updateChildSpeechToggleButton === 'function') {
+  updateChildSpeechToggleButton();
 }
 
 if (canvas) {

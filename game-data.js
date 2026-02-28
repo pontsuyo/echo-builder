@@ -23,6 +23,10 @@ window.addEventListener('resize', resizeCanvasForDpr, { passive: true });
 const resultToggleButton = document.getElementById('toggle-command-result');
 const debugToggleButton = document.getElementById('toggle-debug-overlay');
 const debugOnlyButtons = Array.from(document.querySelectorAll('.test-button'));
+const childSpeechToggleButton = document.getElementById('toggle-child-speech');
+let showChildSpeech = typeof window.__ELEVENLABS_TTS_ENABLED === 'boolean'
+  ? window.__ELEVENLABS_TTS_ENABLED
+  : false;
 
 const WORLD_W = 3200;
 const FLOOR_Y = 250;
@@ -804,6 +808,32 @@ function toggleDebugOverlay() {
   updateDebugToggleButton();
 }
 
+function isChildSpeechEnabled() {
+  return Boolean(showChildSpeech);
+}
+
+function updateChildSpeechToggleButton() {
+  if (!childSpeechToggleButton) return;
+  childSpeechToggleButton.textContent = isChildSpeechEnabled() ? '🔊' : '🔇';
+  childSpeechToggleButton.title = isChildSpeechEnabled()
+    ? '子どもセリフの再生: ON'
+    : '子どもセリフの再生: OFF';
+  childSpeechToggleButton.setAttribute('aria-label', isChildSpeechEnabled() ? '子どもセリフをON' : '子どもセリフをOFF');
+}
+
+function setChildSpeechEnabled(enabled) {
+  showChildSpeech = Boolean(enabled);
+  window.__ELEVENLABS_TTS_ENABLED = showChildSpeech;
+  if (!showChildSpeech && typeof window.stopChildSpeech === 'function') {
+    window.stopChildSpeech();
+  }
+  updateChildSpeechToggleButton();
+}
+
+function toggleChildSpeechOverlay() {
+  setChildSpeechEnabled(!isChildSpeechEnabled());
+}
+
 window.selectRandomGoal = selectRandomGoal;
 window.getActiveGoalForUi = getActiveGoalForUi;
 window.getHousePartBlueprintForGoal = getHousePartBlueprintForGoal;
@@ -811,3 +841,10 @@ window.getGoalHintImagePath = getGoalHintImagePath;
 window.getGoalStateForUi = getGoalStateForUi;
 window.setGoalScoreState = setGoalScoreState;
 window.evaluateGoalScore = evaluateGoalScore;
+window.isChildSpeechEnabled = isChildSpeechEnabled;
+window.setChildSpeechEnabled = setChildSpeechEnabled;
+window.updateChildSpeechToggleButton = updateChildSpeechToggleButton;
+
+if (childSpeechToggleButton) {
+  childSpeechToggleButton.addEventListener('click', toggleChildSpeechOverlay);
+}
