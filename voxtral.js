@@ -145,6 +145,24 @@
     }
   }
 
+  /**
+   * Check if voice input is currently active
+   * @returns {boolean} True if microphone is active
+   */
+  function isVoiceInputActive() {
+    return isMicActive();
+  }
+
+  /**
+   * Stop voice input if it's active
+   * This function provides a public interface for the game engine to stop voice input
+   */
+  async function stopVoiceInput() {
+    if (isVoiceInputActive()) {
+      await stopMicCapture({ finalize: true });
+    }
+  }
+
   const micMimeTypes = [
     'audio/mp4',
     'audio/ogg;codecs=opus',

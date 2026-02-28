@@ -64,6 +64,11 @@ function updatePlayer(dt) {
   if (player.x > FINISH_X && !clear) {
     clear = true;
     addMessage('草原の端に到達！ R で再挑戦');
+    
+    // 音声入力を自動で停止
+    if (typeof window.stopVoxtralMic === 'function') {
+      window.stopVoxtralMic();
+    }
   }
 }
 
@@ -229,6 +234,12 @@ function updateCamera(dt) {
           addMessage(`子${child.childId}の解釈: ${child.interpretation}`);
         }
       }
+      
+      // 音声入力を自動で停止
+      if (typeof window.stopVoxtralMic === 'function') {
+        window.stopVoxtralMic();
+      }
+      
       return;
     }
     cameraX += dx > 0 ? step : -step;
