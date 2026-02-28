@@ -434,25 +434,86 @@ function getGoalHintTextLines() {
   return lines;
 }
 
+const GOAL_HINT_IMAGE_FALLBACK_PATH = '/images/goal-house-game-equivalent-1.svg';
+const goalHintImageStateCache = Object.create(null);
+
+function getGoalHintImageSource() {
+  const goal = typeof getActiveGoalForUi === 'function' ? getActiveGoalForUi() : activeGoal;
+  const fromApi = typeof getGoalHintImagePath === 'function'
+    ? getGoalHintImagePath(goal)
+    : null;
+
+  if (typeof fromApi === 'string' && fromApi.trim()) {
+    return fromApi.trim();
+  }
+
+  if (goal && typeof goal.hintImage === 'string' && goal.hintImage.trim()) {
+    return goal.hintImage.trim();
+  }
+
+  return GOAL_HINT_IMAGE_FALLBACK_PATH;
+}
+
+function getGoalHintImageState(path = null) {
+  const source = path || GOAL_HINT_IMAGE_FALLBACK_PATH;
+  const cached = goalHintImageStateCache[source];
+  if (cached) {
+    return cached;
+  }
+
+  if (typeof Image === 'undefined') {
+    const pending = { image: null, loaded: false, failed: true };
+    goalHintImageStateCache[source] = pending;
+    return pending;
+  }
+
+  const image = new Image();
+  const state = {
+    image,
+    loaded: false,
+    failed: false,
+  };
+
+  image.onload = () => {
+    state.loaded = true;
+  };
+  image.onerror = () => {
+    state.failed = true;
+  };
+  image.src = source;
+  goalHintImageStateCache[source] = state;
+  return state;
+}
+
 function drawGoalHintPanel() {
-  const lines = getGoalHintTextLines();
+  const imageState = getGoalHintImageState(getGoalHintImageSource());
+
+  if (!imageState.image || !imageState.loaded || imageState.failed) {
+    return;
+  }
+
   const x = 8;
   const y = 96;
   const width = 252;
-  const lineHeight = 13;
-  const panelHeight = Math.min(H - y - 4, lines.length * lineHeight + 14);
+  const padding = 8;
+  const maxImageWidth = width - padding * 2;
+  const maxImageHeight = Math.min(180, Math.max(1, H - y - 12));
 
-  ctx.fillStyle = 'rgba(15, 28, 32, 0.78)';
-  ctx.fillRect(x, y, width, panelHeight);
-  ctx.strokeStyle = '#eaf1ff';
-  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, panelHeight - 1);
+  const image = imageState.image;
+  const ratio = image.naturalWidth
+    ? image.naturalWidth / Math.max(1, image.naturalHeight)
+    : 1;
+  let drawWidth = Math.min(maxImageWidth, image.naturalWidth || maxImageWidth);
+  let drawHeight = drawWidth / ratio;
 
-  ctx.fillStyle = '#f1f6ff';
-  ctx.font = '11px "Courier New", monospace';
-  for (let i = 0; i < lines.length; i += 1) {
-    if (y + 12 + i * lineHeight >= y + panelHeight - 2) break;
-    ctx.fillText(lines[i], x + 6, y + 12 + i * lineHeight);
+  if (drawHeight > maxImageHeight) {
+    drawHeight = maxImageHeight;
+    drawWidth = drawHeight * ratio;
   }
+
+  const dx = x + (width - drawWidth) / 2;
+  const dy = y + padding + (maxImageHeight - drawHeight) / 2;
+  ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
 }
 
 function drawHouse() {
@@ -551,6 +612,115 @@ function drawDotBody(x, y, sprite = {}, opacity = 1.0) {
     ctx.fillRect(x + 1, y + 1, 4, 4);
     ctx.fillRect(x + w - 5, y + 1, 4, 4);
   }
+  ctx.globalAlpha = 1.0;
+}
+
+function drawPlayerSpeechBubble(anchorX, topY, isListening = false, opacity = 1.0, imageState = null) {
+  const bubbleW = 105;
+  const bubbleH = 96;
+  const radius = 4;
+  const tailTipY = topY - 1;
+  const tailWidth = 6;
+  const bubbleX = anchorX - bubbleW / 2;
+  const bubbleY = topY - bubbleH - 40;
+
+  const fill = isListening ? '#ffffff' : '#f6fbff';
+  const stroke = isListening ? '#2d4666' : '#4d678a';
+
+  const bx = Math.max(2, bubbleX);
+  const by = Math.max(2, bubbleY);
+  const tailX = clamp(anchorX, bx + 8, bx + bubbleW - 8);
+  const by2 = by + bubbleH;
+  const tailY = clamp(tailTipY, by2 + 6, by2 + 20);
+  const bubbleAlpha = 0.95 * opacity;
+
+  ctx.globalAlpha = bubbleAlpha;
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 1;
+
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bubbleW, bubbleH, radius);
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    const r = radius;
+    const x0 = bx;
+    const y0 = by;
+    const x1 = bx + bubbleW;
+    const y1 = by + bubbleH;
+    ctx.beginPath();
+    ctx.moveTo(x0 + r, y0);
+    ctx.arcTo(x1, y0, x1, y1, r);
+    ctx.arcTo(x1, y1, x0, y1, r);
+    ctx.arcTo(x0, y1, x0, y0, r);
+    ctx.arcTo(x0, y0, x1, y0, r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(tailX - tailWidth / 2, by2);
+  ctx.lineTo(tailX + tailWidth / 2, by2);
+  ctx.lineTo(tailX, tailY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  if (!imageState || !imageState.image || imageState.failed) {
+    const fallbackDotColor = isListening ? '#6f9ecf' : '#7a8fa4';
+    const dotY = by + 16;
+    const basePhase = isListening ? walkTime * 6 : 0;
+    const dots = isListening ? [0, 1, 2] : [0];
+    ctx.fillStyle = fallbackDotColor;
+    for (const d of dots) {
+      const dx = (d - 1) * 5;
+      const bounce = isListening ? Math.max(0.5, 0.5 + Math.sin(basePhase + d * 1.6) * 0.5) : 1;
+      const dotRadius = 1.5 * bounce;
+      ctx.beginPath();
+      ctx.arc(tailX - 3 + dx, dotY, dotRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1.0;
+    return;
+  }
+
+  if (!imageState.loaded) {
+    const loadingDotY = by + 20;
+    const loadingDots = [0, 1, 2];
+    ctx.fillStyle = isListening ? '#6f9ecf' : '#7a8fa4';
+    for (const d of loadingDots) {
+      const dx = (d - 1) * 6;
+      const phase = isListening ? walkTime * 6 + d * 1.2 : 0;
+      const radius = isListening ? 1.3 + Math.sin(phase) * 0.4 : 1.2;
+      ctx.beginPath();
+      ctx.arc(tailX - 3 + dx, loadingDotY, Math.max(0.8, radius), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1.0;
+    return;
+  }
+
+  const img = imageState.image;
+  const padding = 2;
+  const imageArea = {
+    x: bx + padding,
+    y: by + padding,
+    w: Math.max(1, bubbleW - padding * 2),
+    h: Math.max(1, bubbleH - padding * 2 - 4),
+  };
+  const ratio = img.naturalWidth ? img.naturalWidth / Math.max(1, img.naturalHeight) : 1;
+  let drawW = imageArea.w;
+  let drawH = drawW / ratio;
+  if (drawH > imageArea.h) {
+    drawH = imageArea.h;
+    drawW = drawH * ratio;
+  }
+  const dx = imageArea.x + (imageArea.w - drawW) / 2;
+  const dy = imageArea.y + (imageArea.h - drawH) / 2;
+  ctx.drawImage(img, dx, dy, drawW, drawH);
   ctx.globalAlpha = 1.0;
 }
 
@@ -714,6 +884,17 @@ function draw() {
       isHero: true,
     };
     drawDotBody(px, player.y, heroSprite);
+
+    const hasSpeechBubble = !clear || heroListening || Boolean(latestLiveTranscript && String(latestLiveTranscript).trim());
+    if (hasSpeechBubble) {
+      drawPlayerSpeechBubble(
+        px + player.w / 2,
+        player.y,
+        heroListening,
+        heroListening ? 1.0 : 0.8,
+        getGoalHintImageState(getGoalHintImageSource())
+      );
+    }
   }
 
   // HUD
@@ -731,7 +912,7 @@ function draw() {
   ctx.fillText('音声デバッグ:', 8, 66);
   ctx.fillText(liveTranscriptLine, 8, 82);
 
-  drawGoalHintPanel();
+  // ゴール画像はプレイヤー頭上の吹き出しに統一して表示する
   drawCommandResultPanel();
 }
 

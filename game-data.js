@@ -9,6 +9,7 @@ const WORLD_W = 3200;
 const FLOOR_Y = 250;
 const HOUSE_REVEAL_SPEED = 1040;
 const HOUSE_REVEAL_TARGET_OFFSET = 0.30;
+const DEFAULT_GOAL_HINT_IMAGE = '/images/goal-house-game-equivalent-1.svg';
 
 const palette = {
   skyTop: '#5fb4ff',
@@ -47,7 +48,7 @@ const HOUSE_PART_BLUEPRINT_DEFAULT = [
 const HOUSE_PART_BLUEPRINT_GOAL_RED_LEFT_DOOR = [
   { type: 'wall', x: 0, y: 0, w: 110, h: 68, colorHex: '#f2f2ea' },
   { type: 'roof', x: -4, y: -4, roofShape: 'triangle', colorHex: '#cf5547' },
-  { type: 'door', x: 12, y: 36, w: 14, h: 32, colorHex: '#5e4839' },
+  { type: 'door', x: 12, y: 21, w: 12, h: 47, colorHex: '#5e4839' },
 ];
 const HOUSE_PART_BLUEPRINT = HOUSE_PART_BLUEPRINT_DEFAULT;
 
@@ -84,6 +85,7 @@ const GOAL_PATTERNS = [
       min: 0,
       max: 100,
     },
+    hintImage: DEFAULT_GOAL_HINT_IMAGE,
   },
   {
     goalId: 'goal-red-roof-3columns-door',
@@ -121,6 +123,7 @@ const GOAL_PATTERNS = [
       min: 0,
       max: 100,
     },
+    hintImage: DEFAULT_GOAL_HINT_IMAGE,
   },
   {
     goalId: 'goal-blue-flat-roof-window2',
@@ -155,6 +158,7 @@ const GOAL_PATTERNS = [
       min: 0,
       max: 100,
     },
+    hintImage: DEFAULT_GOAL_HINT_IMAGE,
   },
   {
     goalId: 'goal-green-round-chimney',
@@ -188,6 +192,7 @@ const GOAL_PATTERNS = [
       min: 0,
       max: 100,
     },
+    hintImage: DEFAULT_GOAL_HINT_IMAGE,
   },
 ];
 
@@ -208,6 +213,11 @@ function cloneGoal(goal) {
 function getHousePartBlueprintForGoal(goalSpec = null) {
   const goalId = goalSpec ? goalSpec.goalId : (activeGoal ? activeGoal.goalId : null);
   return HOUSE_PART_BLUEPRINT_BY_GOAL_ID[goalId] || HOUSE_PART_BLUEPRINT;
+}
+
+function getGoalHintImagePath(goalSpec = null) {
+  const goal = goalSpec || activeGoal || null;
+  return goal && goal.hintImage ? goal.hintImage : DEFAULT_GOAL_HINT_IMAGE;
 }
 
 function selectRandomGoal(seed) {
@@ -727,6 +737,7 @@ function resetNpcCommandState(npc) {
 window.selectRandomGoal = selectRandomGoal;
 window.getActiveGoalForUi = getActiveGoalForUi;
 window.getHousePartBlueprintForGoal = getHousePartBlueprintForGoal;
+window.getGoalHintImagePath = getGoalHintImagePath;
 window.getGoalStateForUi = getGoalStateForUi;
 window.setGoalScoreState = setGoalScoreState;
 window.evaluateGoalScore = evaluateGoalScore;
