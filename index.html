@@ -71,8 +71,10 @@
     <div id="wrap">
       <canvas id="game" width="640" height="360"></canvas>
       <div class="toolbar">
+        <button id="start-command-lineup">命令開始</button>
+        <button id="toggle-command-result">結果確認</button>
         <button id="ask-voxtral-mic">マイク開始</button>
-        <span class="hint">←→で移動 / Zでジャンプ / Rでリトライ / M:マイク開始・停止</span>
+        <span class="hint">←→で移動 / Zでジャンプ / Rでリトライ / M:マイク開始・停止 / 「命令開始」→列に並ぶ</span>
       </div>
     </div>
     <!-- ローカルでのみ開発向け設定 -->
@@ -84,6 +86,6 @@
       window.__MISTRAL_DEBUG = true;
     </script>
     <script src="voxtral.js?v=3" defer></script>
-    <script src="game.js?v=7" defer></script>
+    <script src="game.js?v=8" defer></script>
   </body>
 </html>
