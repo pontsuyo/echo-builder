@@ -198,6 +198,9 @@ function createNpc(i) {
     lineSlot: -1,
     commandMarkUntil: 0,
     isBuildCommand: false,
+    preferredPartType: null,
+    requestedBuildQuantity: 1,
+    lastBuiltQuantity: 0,
     assignedBuildPartId: null,
     buildQuantity: 1,
     lastHeardText: '',
@@ -260,6 +263,9 @@ function resetNpcCommandState(npc) {
   npc.commandTargetX = null;
   npc.commandTargetY = null;
   npc.isBuildCommand = false;
+  npc.preferredPartType = null;
+  npc.requestedBuildQuantity = 1;
+  npc.lastBuiltQuantity = 0;
   npc.assignedBuildPartId = null;
   npc.buildQuantity = 1;
 }

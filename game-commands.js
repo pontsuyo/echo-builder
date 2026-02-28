@@ -9,15 +9,109 @@ function getHousePartAbsoluteX(part) {
   return home.x + part.x;
 }
 
+function createHousePartFromTemplate(template, options = {}) {
+  return {
+    id: houseParts.length,
+    type: template.type,
+    x: options.x !== undefined ? options.x : template.x,
+    y: options.y !== undefined ? options.y : template.y,
+    w: options.w !== undefined ? options.w : (template.w || 0),
+    h: options.h !== undefined ? options.h : (template.h || 0),
+    built: false,
+    builtBy: null,
+    isDynamic: true,
+  };
+}
+
+function getHousePartTemplateByType(type) {
+  return HOUSE_PART_BLUEPRINT.find((part) => part.type === type);
+}
+
+function createExtraWindowPart() {
+  const template = getHousePartTemplateByType('window');
+  if (!template) {
+    return null;
+  }
+
+  const width = template.w || 12;
+  const y = template.y;
+  const startX = 8;
+  const margin = 2;
+  const maxX = Math.max(startX, home.w - width - margin);
+
+  const existing = houseParts
+    .filter((part) => part.type === 'window')
+    .map((part) => ({ x: part.x, w: part.w || width }));
+
+  for (let x = startX; x <= maxX; x += width + 2) {
+    const collides = existing.some(({ x: ex, w: ew }) => !(x + width <= ex || ex + ew <= x));
+    if (!collides) {
+      const part = createHousePartFromTemplate(template, { x, y });
+      houseParts.push(part);
+      return part;
+    }
+  }
+
+  const fallbackX = Math.min(maxX, startX + Math.max(1, existing.length) * (width + 2));
+  const part = createHousePartFromTemplate(template, { x: fallbackX, y });
+  houseParts.push(part);
+  return part;
+}
+
+function maybeCreateClosestCandidate(type) {
+  if (!type) {
+    return null;
+  }
+
+  if (type === 'window') {
+    return createExtraWindowPart();
+  }
+
+  const template = getHousePartTemplateByType(type);
+  if (!template) {
+    return null;
+  }
+
+  const part = createHousePartFromTemplate(template, {
+    x: template.x,
+    y: template.y,
+    w: template.w || 0,
+    h: template.h || 0,
+  });
+  houseParts.push(part);
+  return part;
+}
+
 function buildClosestHousePartForNpc(npc, preferredType) {
-  const unbuilt = houseParts.filter((part) => !part.built);
-  if (!unbuilt.length) return null;
+  const unbuilt = houseParts.filter(
+    (part) => !part.built && (part.assignedTo == null || part.assignedTo === npc.id)
+  );
+  if (!unbuilt.length) {
+    if (!preferredType) {
+      return null;
+    }
+
+    const extraPart = maybeCreateClosestCandidate(preferredType);
+    if (!extraPart) {
+      return null;
+    }
+
+    extraPart.assignedTo = npc.id;
+    return extraPart.id;
+  }
 
   let candidates = unbuilt;
   if (preferredType) {
     const filtered = unbuilt.filter((part) => part.type === preferredType);
     if (filtered.length) {
       candidates = filtered;
+    } else {
+      const extraPart = maybeCreateClosestCandidate(preferredType);
+      if (extraPart) {
+        extraPart.assignedTo = npc.id;
+        return extraPart.id;
+      }
+      return null;
     }
   }
 
@@ -47,21 +141,30 @@ function completeBuildForNpc(npc) {
 
   part.built = true;
   part.builtBy = npc.id;
+  part.assignedTo = null;
   npc.assignedBuildPartId = null;
   return part;
 }
 
 function completeBuildForNpcWithQuantity(npc) {
-  const quantity = npc.buildQuantity || 1;
+  const requestedQuantity = Math.max(1, npc.buildQuantity || 1);
+  const preferredPartType = npc.preferredPartType || null;
   const completedParts = [];
   
-  for (let i = 0; i < quantity; i++) {
+  for (let i = 0; i < requestedQuantity; i += 1) {
+    if (npc.assignedBuildPartId === null) {
+      npc.assignedBuildPartId = buildClosestHousePartForNpc(npc, preferredPartType);
+    }
+
     const part = completeBuildForNpc(npc);
     if (part) {
       completedParts.push(part);
+    } else {
+      break;
     }
   }
   
+  npc.lastBuiltQuantity = completedParts.length;
   return completedParts.length > 0 ? completedParts : null;
 }
 
@@ -341,21 +444,22 @@ function receiveHeroCommand(text) {
   targetNpc.lastHeardText = spoken;
   targetNpc.lastInterpretation = parsed.interpretation;
   targetNpc.isBuildCommand = parsed.isBuild;
-  targetNpc.assignedBuildPartId = null;
+  targetNpc.preferredPartType = parsed.preferredPartType || null;
   targetNpc.buildQuantity = parsed.quantity || 1;
+  targetNpc.requestedBuildQuantity = targetNpc.buildQuantity;
+  targetNpc.lastBuiltQuantity = 0;
   if (parsed.isBuild) {
     targetNpc.assignedBuildPartId = buildClosestHousePartForNpc(targetNpc, parsed.preferredPartType);
+    if (targetNpc.assignedBuildPartId === null) {
+      targetNpc.isBuildCommand = false;
+    }
     targetNpc.commandMarkUntil = performance.now() + COMMAND_LINE.markDisplayMs;
   }
   // 家の横に立つ位置を計算（家の左側にNPCが並ぶ）
   targetNpc.commandTargetX = home.x - 50 - (targetNpc.id * 30);
   targetNpc.commandTargetY = FLOOR_Y - targetNpc.h;
 
-  if (parsed.isBuild) {
-    if (targetNpc.assignedBuildPartId == null) {
-      targetNpc.isBuildCommand = false;
-    }
-  }
+  
   targetNpc.commandMarkUntil = targetNpc.isBuildCommand ? targetNpc.commandMarkUntil : 0;
   targetNpc.commandState = NPC_COMMAND_STATES.RETURN_HOME;
   targetNpc.lineSlot = -1;

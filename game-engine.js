@@ -166,6 +166,46 @@ function checkHouseRevealTrigger() {
   addMessage('全員の指示が完了したので、建物のある場所へカメラを移動します。');
 }
 
+function getBuiltHousePartSummaryText() {
+  const requestedByType = {};
+  const builtByType = {};
+
+  for (const npc of npcs) {
+    if (!npc.isBuildCommand) continue;
+    const type = npc.preferredPartType;
+    if (!type) continue;
+    const requested = Math.max(1, npc.requestedBuildQuantity || npc.buildQuantity || 1);
+    requestedByType[type] = (requestedByType[type] || 0) + requested;
+  }
+
+  for (const part of houseParts) {
+    if (!part.built) continue;
+    builtByType[part.type] = (builtByType[part.type] || 0) + 1;
+  }
+
+  const ordered = ['wall', 'roof', 'chimney', 'door', 'window'];
+  const summaries = [];
+
+  for (const type of ordered) {
+    const requested = requestedByType[type] || 0;
+    const built = builtByType[type] || 0;
+    if (requested > 0 || built > 0) {
+      const label = `${HOUSE_PART_LABELS[type] || type}${requested || built}個`;
+      summaries.push(requested === 0 || requested === built ? label : `${label}(依頼:${requested} / 実施:${built})`);
+    }
+  }
+
+  for (const type of Object.keys({ ...requestedByType, ...builtByType })) {
+    if (ordered.includes(type)) continue;
+    const requested = requestedByType[type] || 0;
+    const built = builtByType[type] || 0;
+    const label = `${HOUSE_PART_LABELS[type] || type}${requested || built}個`;
+    summaries.push(requested === 0 || requested === built ? label : `${label}(依頼:${requested} / 実施:${built})`);
+  }
+
+  return summaries.length ? summaries.join('、') : '未設置';
+}
+
 function updateCamera(dt) {
   if (houseRevealDone && !houseRevealActive) {
     return;
@@ -180,7 +220,8 @@ function updateCamera(dt) {
       houseRevealActive = false;
       houseRevealDone = true;
       clear = true;
-      addMessage('家の建設が完了。Rでリトライできます。');
+      const builtSummary = getBuiltHousePartSummaryText();
+      addMessage(`家の建設が完了。設置数: ${builtSummary}。Rでリトライできます。`);
       return;
     }
     cameraX += dx > 0 ? step : -step;
