@@ -26,6 +26,11 @@
     return Boolean(window.__voxtralState.isMicActive());
   }
 
+  function updateMicButtonLabel() {
+    if (!micButton) return;
+    micButton.textContent = isMicActive() ? 'マイク停止' : isRetryMode ? 'retry' : 'START';
+  }
+
   if (micButton) {
     micButton.disabled = false;
     micButton.addEventListener('click', () => {
