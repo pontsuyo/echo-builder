@@ -1025,10 +1025,12 @@ function getInterpretationSpeechBubbleRect(npc, sx, text, childId = 0) {
   try {
     ctx.font = '12px "Courier New", monospace';
     const textWidth = Math.ceil(ctx.measureText(clean).width);
-    const bubbleW = clamp(textWidth + 8, 16, W - 4);
-    const bubbleH = 16;
-    const bx = clamp(Math.round(sx), 2, W - bubbleW - 2);
-    const by = Math.round(npc.y + npc.h + 4 + childId * 20);
+    const bubbleW = clamp(textWidth + 16, 34, Math.min(220, W - 4));
+    const bubbleH = 20;
+    const tipX = sx + npc.w * 0.5;
+    const leftAnchorOffset = 7;
+    const bx = clamp(Math.round(tipX - leftAnchorOffset), 2, W - bubbleW - 2);
+    const by = Math.round(npc.y + npc.h + 2 + childId * (bubbleH + 6));
     return {
       x: bx,
       y: by,
@@ -1046,7 +1048,8 @@ function drawInterpretationSpeechBubble(npc, sx, text, opacity = 1, childId = 0)
 
   const rect = getInterpretationSpeechBubbleRect(npc, sx, clean, childId);
   if (!rect) return null;
-  const tailBaseX = rect.x + 10;
+  const tipX = sx + npc.w * 0.5;
+  const tailBaseX = clamp(tipX, rect.x + 4, rect.x + rect.w - 4);
   const tailTipY = rect.y - 5;
   const tailWidth = 4;
 
@@ -1070,7 +1073,8 @@ function drawInterpretationSpeechBubble(npc, sx, text, opacity = 1, childId = 0)
   ctx.fillStyle = '#000000';
   ctx.font = '12px "Courier New", monospace';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText(clean, rect.x + 4, rect.y + 14);
+  ctx.textBaseline = 'middle';
+  ctx.fillText(clean, rect.x + 7, rect.y + rect.h / 2);
   ctx.restore();
   return rect;
 }
@@ -1622,7 +1626,8 @@ function drawUninterpretedHintBubble(npc, sx, opacity = 1.0) {
   const bubbleW = 16;
   const bubbleH = 14;
   const anchorX = sx + npc.w * 0.5;
-  const bx = clamp(Math.round(anchorX - bubbleW / 2), 2, W - bubbleW - 2);
+  const leftAnchorOffset = 7;
+  const bx = clamp(Math.round(anchorX - leftAnchorOffset), 2, W - bubbleW - 2);
   const by = Math.round(npc.y - bubbleH - 14);
   const tailBaseX = clamp(anchorX, bx + 4, bx + bubbleW - 4);
   const tailTipY = npc.y - 5;
@@ -1681,7 +1686,8 @@ function drawWorkStartSpeechBubble(npc, sx, text, opacity = 1.0) {
   const bubbleW = clamp(Math.ceil(ctx.measureText(cleaned).width) + 14, 52, maxBubbleW);
   const bubbleH = 17;
   const anchorX = sx + npc.w * 0.5;
-  const bx = clamp(Math.round(anchorX - bubbleW / 2), 2, W - bubbleW - 2);
+  const leftAnchorOffset = 6;
+  const bx = clamp(Math.round(anchorX - leftAnchorOffset), 2, W - bubbleW - 2);
   const by = Math.round(npc.y - bubbleH - 16);
   const tailBaseX = clamp(anchorX, bx + 5, bx + bubbleW - 5);
 
