@@ -656,13 +656,10 @@ function createNpc(i) {
   };
 }
 
-const npcs = Array.from({ length: 2 }, (_, i) => createNpc(i));
+const npcs = Array.from({ length: 3 }, (_, i) => createNpc(i));
 
 // 各子供の解釈データ
-const childInterpretations = [
-  { childId: 0, interpretation: "" },
-  { childId: 1, interpretation: "" }
-];
+const childInterpretations = npcs.map((npc) => ({ childId: npc.id, interpretation: '' }));
 
 // 解釈データを更新する関数
 function updateChildInterpretation(childId, interpretation) {
