@@ -2,6 +2,7 @@ function resetGame() {
   clear = false;
   addMessage('2D Dot Meadow - リトライ可能');
   resetPlayer();
+  selectRandomGoal(Date.now());
   resetHouseBuildProgress();
   resetCommandSession();
   resetCommandResultLog();
@@ -147,7 +148,7 @@ function getBuiltHousePartSummaryText() {
     builtByType[part.type] = (builtByType[part.type] || 0) + 1;
   }
 
-  const ordered = ['wall', 'roof', 'chimney', 'door', 'window'];
+  const ordered = ['wall', 'roof', 'chimney', 'door', 'window', 'column'];
   const summaries = [];
 
   for (const type of ordered) {
@@ -184,8 +185,28 @@ function updateCamera(dt) {
       houseRevealActive = false;
       houseRevealDone = true;
       clear = true;
+      if (!scoreVisible) {
+        const evaluated = evaluateGoalScore(activeGoal, houseParts, []);
+        goalScore = evaluated.score;
+        goalScoreBreakdown = evaluated.breakdown;
+        scoreVisible = true;
+
+        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+          window.dispatchEvent(
+            new CustomEvent('goal:score.finalized', {
+              detail: {
+                goalId: activeGoal ? activeGoal.goalId : null,
+                score: evaluated.score,
+                breakdown: evaluated.breakdown,
+                extraPenalty: evaluated.breakdown.extraPenalty,
+                idealMatchRate: evaluated.breakdown.idealMatchRate,
+              },
+            })
+          );
+        }
+      }
       const builtSummary = getBuiltHousePartSummaryText();
-      addMessage(`家の建設が完了。設置数: ${builtSummary}。Rでリトライできます。`);
+      addMessage(`家の建設が完了。設置数: ${builtSummary}。スコア:${goalScore}。Rでリトライできます。`);
       
       // 各子供の解釈を表示
       for (const child of childInterpretations) {
@@ -321,6 +342,16 @@ function drawHousePart(part, sx, sy) {
     }
     return;
   }
+  if (part.type === 'column') {
+    const color = part.colorHex || palette.houseWall;
+    ctx.fillStyle = color;
+    ctx.fillRect(sx + part.x, sy + part.y, part.w, part.h);
+
+    ctx.strokeStyle = '#3f2f24';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sx + part.x + 0.5, sy + part.y + 0.5, part.w, part.h);
+    return;
+  }
   if (part.type === 'chimney') {
     ctx.fillStyle = '#d4b07a';
     ctx.fillRect(sx + part.x, sy + part.y, part.w, part.h);
@@ -339,6 +370,88 @@ function drawHousePart(part, sx, sy) {
     ctx.fillStyle = palette.houseTrim;
     ctx.fillRect(sx + part.x + 3, sy + part.y + 2, 2, part.h - 4);
     ctx.fillRect(sx + part.x + 9, sy + part.y + 2, 2, part.h - 4);
+  }
+}
+
+function getGoalHintTextLines() {
+  const goal = typeof getActiveGoalForUi === 'function' ? getActiveGoalForUi() : activeGoal;
+  if (!goal) {
+    return ['未設定'];
+  }
+
+  const toRequiredText = (target) => {
+    if (!target) return '1';
+    if (typeof target === 'number') {
+      return `${target}`;
+    }
+    if (typeof target.min === 'number' && typeof target.max === 'number') {
+      if (target.min === target.max) {
+        return `${target.min}`;
+      }
+      return `${target.min}-${target.max}`;
+    }
+    if (typeof target.min === 'number') {
+      return `${target.min}`;
+    }
+    if (typeof target.max === 'number') {
+      return `${target.max}`;
+    }
+    return '1';
+  };
+
+  const lines = [];
+  lines.push(`目標: ${goal.name || goal.goalId}`);
+
+  for (const rule of goal.parts || []) {
+    const type = HOUSE_PART_LABELS[rule.partType] || rule.partType || '部品';
+    const req = toRequiredText(rule.requiredCount);
+    let detail = `${type}${req}個`;
+
+    if (rule.targetColorHex) {
+      detail += ` / 色:${rule.targetColorHex}`;
+    }
+    if (rule.targetRoofShape) {
+      detail += ` / 屋根:${rule.targetRoofShape}`;
+    }
+    if (rule.positionRule && rule.positionRule.mode === 'x-center') {
+      const tol = Number(rule.positionRule.tolerancePx) || DEFAULT_GOAL_POSITION_TOLERANCE;
+      detail += ` / 中央±${tol}px`;
+    }
+
+    lines.push(detail);
+  }
+
+  if (scoreVisible && goalScoreBreakdown) {
+    const rate = Math.round((goalScoreBreakdown.idealMatchRate || 0) * 100);
+    const extraPenalty = goalScoreBreakdown.extraPenalty || 0;
+    const destroyPenalty = goalScoreBreakdown.destroyPenalty || 0;
+    lines.push(`スコア: ${goalScore}点（一致率:${rate}%）`);
+    lines.push(`追加罰則: ${extraPenalty + destroyPenalty}点`);
+  } else if (goalScoreBreakdown && typeof goalScore === 'number') {
+    lines.push(`暫定スコア: ${goalScore}点`);
+  }
+
+  return lines;
+}
+
+function drawGoalHintPanel() {
+  const lines = getGoalHintTextLines();
+  const x = 8;
+  const y = 96;
+  const width = 252;
+  const lineHeight = 13;
+  const panelHeight = Math.min(H - y - 4, lines.length * lineHeight + 14);
+
+  ctx.fillStyle = 'rgba(15, 28, 32, 0.78)';
+  ctx.fillRect(x, y, width, panelHeight);
+  ctx.strokeStyle = '#eaf1ff';
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, panelHeight - 1);
+
+  ctx.fillStyle = '#f1f6ff';
+  ctx.font = '11px "Courier New", monospace';
+  for (let i = 0; i < lines.length; i += 1) {
+    if (y + 12 + i * lineHeight >= y + panelHeight - 2) break;
+    ctx.fillText(lines[i], x + 6, y + 12 + i * lineHeight);
   }
 }
 
@@ -618,6 +731,7 @@ function draw() {
   ctx.fillText('音声デバッグ:', 8, 66);
   ctx.fillText(liveTranscriptLine, 8, 82);
 
+  drawGoalHintPanel();
   drawCommandResultPanel();
 }
 
@@ -649,6 +763,12 @@ if (typeof window.setupVoxtralIntegration === 'function') {
       npcCount: npcs.length,
       enemyCount: npcs.length,
       cameraX: Math.floor(cameraX),
+      goal: getGoalStateForUi ? getGoalStateForUi() : {
+        activeGoal: getActiveGoalForUi ? getActiveGoalForUi() : activeGoal,
+        score: goalScore,
+        scoreVisible,
+        breakdown: goalScoreBreakdown,
+      },
       mode: clear ? 'goal' : 'play',
     }),
     setMessage: addMessage,

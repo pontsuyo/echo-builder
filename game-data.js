@@ -25,6 +25,7 @@ const palette = {
 
 const HOUSE_ROOF_SHAPES = ['round', 'triangle', 'flat'];
 const DEFAULT_ROOF_SHAPE = 'triangle';
+const DEFAULT_GOAL_POSITION_TOLERANCE = 8;
 
 const home = {
   x: 1550,
@@ -32,19 +33,462 @@ const home = {
   h: 68,
 };
 
-const HOUSE_PART_BLUEPRINT = [
-  { type: 'wall', x: 0, y: 0, w: 110, h: 68 },
-  { type: 'roof', x: -4, y: -4, roofShape: 'triangle' },
-  { type: 'chimney', x: 84, y: -26, w: 8, h: 20 },
-  { type: 'door', x: 12, y: 36, w: 14, h: 32 },
-  { type: 'window', x: 36, y: 22, w: 12, h: 10 },
-  { type: 'window', x: 66, y: 22, w: 12, h: 10 },
+const HOUSE_PART_BLUEPRINT_DEFAULT = [
+  { type: 'wall', x: 0, y: 0, w: 110, h: 68, colorHex: '#f2f2ea' },
+  { type: 'roof', x: -4, y: -4, roofShape: 'triangle', colorHex: '#cf5547' },
+  { type: 'chimney', x: 84, y: -26, w: 8, h: 20, colorHex: '#d4b07a' },
+  { type: 'door', x: 12, y: 36, w: 14, h: 32, colorHex: '#5e4839' },
+  { type: 'column', x: 16, y: 26, w: 7, h: 42, colorHex: '#8a847b' },
+  { type: 'column', x: 50, y: 26, w: 7, h: 42, colorHex: '#8a847b' },
+  { type: 'column', x: 84, y: 26, w: 7, h: 42, colorHex: '#8a847b' },
+  { type: 'window', x: 36, y: 22, w: 12, h: 10, colorHex: '#fdf8b8' },
+  { type: 'window', x: 66, y: 22, w: 12, h: 10, colorHex: '#fdf8b8' },
+];
+const HOUSE_PART_BLUEPRINT_GOAL_RED_LEFT_DOOR = [
+  { type: 'wall', x: 0, y: 0, w: 110, h: 68, colorHex: '#f2f2ea' },
+  { type: 'roof', x: -4, y: -4, roofShape: 'triangle', colorHex: '#cf5547' },
+  { type: 'door', x: 12, y: 36, w: 14, h: 32, colorHex: '#5e4839' },
+];
+const HOUSE_PART_BLUEPRINT = HOUSE_PART_BLUEPRINT_DEFAULT;
+
+const HOUSE_PART_BLUEPRINT_BY_GOAL_ID = {
+  'goal-red-roof-3columns-door-strict': HOUSE_PART_BLUEPRINT_GOAL_RED_LEFT_DOOR,
+  'goal-red-roof-3columns-door': HOUSE_PART_BLUEPRINT_DEFAULT,
+};
+
+const GOAL_PATTERNS = [
+  {
+    goalId: 'goal-red-roof-3columns-door-strict',
+    name: '赤い屋根・左ドア',
+    version: '1.0',
+    parts: [
+      {
+        partType: 'roof',
+        requiredCount: { min: 1, max: 1 },
+        weight: { count: 10, color: 10, position: 0 },
+        targetColorHex: '#cf5547',
+        targetRoofShape: 'triangle',
+      },
+      {
+        partType: 'door',
+        requiredCount: { min: 1, max: 1 },
+        weight: { count: 10, color: 0, position: 0 },
+      },
+    ],
+    penalties: {
+      extraPart: -5,
+      destroyedPart: -10,
+    },
+    score: {
+      base: 0,
+      min: 0,
+      max: 100,
+    },
+  },
+  {
+    goalId: 'goal-red-roof-3columns-door',
+    name: '赤い屋根・柱3本・中央ドア',
+    version: '1.0',
+    parts: [
+      {
+        partType: 'roof',
+        requiredCount: { min: 1, max: 1 },
+        weight: { count: 10, color: 10, position: 0 },
+        targetColorHex: '#d64545',
+        targetRoofShape: 'triangle',
+      },
+      {
+        partType: 'column',
+        requiredCount: { min: 3, max: 3 },
+        weight: { count: 10, color: 0, position: 0 },
+      },
+      {
+        partType: 'door',
+        requiredCount: { min: 1, max: 1 },
+        weight: { count: 10, color: 0, position: 0 },
+        positionRule: {
+          mode: 'x-center',
+          tolerancePx: 8,
+        },
+      },
+    ],
+    penalties: {
+      extraPart: -5,
+      destroyedPart: -10,
+    },
+    score: {
+      base: 0,
+      min: 0,
+      max: 100,
+    },
+  },
+  {
+    goalId: 'goal-blue-flat-roof-window2',
+    name: '青い平屋根・窓2つ',
+    version: '1.0',
+    parts: [
+      {
+        partType: 'roof',
+        requiredCount: { min: 1, max: 1 },
+        weight: { count: 10, color: 10, position: 0 },
+        targetColorHex: '#4da6ff',
+        targetRoofShape: 'flat',
+      },
+      {
+        partType: 'window',
+        requiredCount: { min: 2, max: 2 },
+        weight: { count: 10, color: 8, position: 0 },
+        targetColorHex: '#fdf8b8',
+      },
+      {
+        partType: 'door',
+        requiredCount: { min: 1, max: 1 },
+        weight: { count: 10, color: 0, position: 0 },
+      },
+    ],
+    penalties: {
+      extraPart: -5,
+      destroyedPart: -10,
+    },
+    score: {
+      base: 0,
+      min: 0,
+      max: 100,
+    },
+  },
+  {
+    goalId: 'goal-green-round-chimney',
+    name: '緑の丸屋根・煙突',
+    version: '1.0',
+    parts: [
+      {
+        partType: 'roof',
+        requiredCount: { min: 1, max: 1 },
+        weight: { count: 10, color: 10, position: 0 },
+        targetColorHex: '#2f8f5f',
+        targetRoofShape: 'round',
+      },
+      {
+        partType: 'chimney',
+        requiredCount: { min: 1, max: 1 },
+        weight: { count: 10, color: 0, position: 0 },
+      },
+      {
+        partType: 'column',
+        requiredCount: { min: 2, max: 2 },
+        weight: { count: 5, color: 0, position: 0 },
+      },
+    ],
+    penalties: {
+      extraPart: -5,
+      destroyedPart: -10,
+    },
+    score: {
+      base: 0,
+      min: 0,
+      max: 100,
+    },
+  },
 ];
 
 let houseParts = [];
 let allOrdersReceived = false;
 let houseRevealActive = false;
 let houseRevealDone = false;
+let activeGoal = null;
+let lastGoalId = null;
+let goalScore = 0;
+let goalScoreBreakdown = null;
+let scoreVisible = false;
+
+function cloneGoal(goal) {
+  return JSON.parse(JSON.stringify(goal));
+}
+
+function getHousePartBlueprintForGoal(goalSpec = null) {
+  const goalId = goalSpec ? goalSpec.goalId : (activeGoal ? activeGoal.goalId : null);
+  return HOUSE_PART_BLUEPRINT_BY_GOAL_ID[goalId] || HOUSE_PART_BLUEPRINT;
+}
+
+function selectRandomGoal(seed) {
+  if (!GOAL_PATTERNS.length) {
+    activeGoal = null;
+    lastGoalId = null;
+    goalScore = 0;
+    goalScoreBreakdown = null;
+    scoreVisible = false;
+    return null;
+  }
+
+  const idx = Number.isFinite(seed)
+    ? Math.abs(Math.floor(seed) % GOAL_PATTERNS.length)
+    : Math.floor(Math.random() * GOAL_PATTERNS.length);
+  const nextGoal = cloneGoal(GOAL_PATTERNS[idx]);
+  activeGoal = nextGoal;
+  lastGoalId = nextGoal.goalId;
+  goalScore = 0;
+  goalScoreBreakdown = null;
+  scoreVisible = false;
+
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(
+      new CustomEvent('goal:selected', {
+        detail: {
+          goalId: nextGoal.goalId,
+          version: nextGoal.version || '1.0',
+          selectedAt: Date.now(),
+        },
+      })
+    );
+  }
+
+  return activeGoal;
+}
+
+function setActiveGoal(goalSpec) {
+  activeGoal = goalSpec ? cloneGoal(goalSpec) : null;
+}
+
+function clamp01(value) {
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+}
+
+function normalizeCount(req) {
+  if (typeof req === 'number' && Number.isFinite(req)) {
+    return { min: Math.max(0, req), max: Math.max(0, req) };
+  }
+
+  const fallback = { min: 0, max: 0 };
+  if (!req || typeof req !== 'object') {
+    return fallback;
+  }
+
+  const min = Number.isFinite(req.min) ? Math.max(0, req.min) : 0;
+  const max = Number.isFinite(req.max) ? Math.max(0, req.max) : min;
+  return {
+    min,
+    max: Math.max(min, max),
+  };
+}
+
+function getWeight(rule, key) {
+  if (!rule || typeof rule !== 'object') {
+    return 0;
+  }
+
+  const direct = Number(rule[key]);
+  if (Number.isFinite(direct)) {
+    return direct;
+  }
+
+  const aliases = {
+    countWeight: 'count',
+    colorWeight: 'color',
+    positionWeight: 'position',
+  };
+  const alias = aliases[key];
+  if (alias && Number.isFinite(Number(rule[alias]))) {
+    return Number(rule[alias]);
+  }
+
+  const nested = rule.weight && Number(rule.weight[key.replace('Weight', '')]);
+  if (Number.isFinite(nested)) {
+    return nested;
+  }
+
+  return 0;
+}
+
+function normalizeColor(value) {
+  if (!value) return '';
+  const color = String(value).trim().toLowerCase();
+  return color.startsWith('#') ? color : `#${color}`;
+}
+
+function isColorMatch(actual, expected) {
+  if (!expected) {
+    return false;
+  }
+  return normalizeColor(actual) === normalizeColor(expected);
+}
+
+function buildGoalRuleScore(goal, builtParts, destroyedParts = []) {
+  const rules = Array.isArray(goal?.parts) ? goal.parts : [];
+  const builtByType = {};
+
+  for (const part of builtParts || []) {
+    if (!part || !part.type) continue;
+    const list = builtByType[part.type] || [];
+    list.push(part);
+    builtByType[part.type] = list;
+  }
+
+  const requiredByType = {};
+  const breakdownRows = [];
+  let matchScore = 0;
+  let maxMatchScore = 0;
+  let extraCount = 0;
+
+  for (const rule of rules) {
+    const partType = rule.partType || rule.part || '';
+    const range = normalizeCount(rule.requiredCount);
+    const targetCount = Math.max(range.max, range.min);
+
+    requiredByType[partType] = (requiredByType[partType] || 0) + targetCount;
+
+    const countWeight = getWeight(rule.weight || rule, 'countWeight');
+    const colorWeight = getWeight(rule.weight || rule, 'colorWeight');
+    const positionWeight = getWeight(rule.weight || rule, 'positionWeight');
+    maxMatchScore += countWeight + colorWeight + positionWeight;
+
+    const builtOfType = builtByType[partType] || [];
+    const doneCount = builtOfType.length;
+    const denom = Math.max(1, targetCount);
+    const countMatchScore = targetCount > 0
+      ? (Math.min(doneCount, targetCount) / targetCount) * countWeight
+      : 0;
+
+    const targetColorHex = rule.targetColorHex;
+    let colorMatchCount = 0;
+    if (targetColorHex) {
+      colorMatchCount = builtOfType.filter((part) => isColorMatch(part.colorHex, targetColorHex)).length;
+    }
+    const colorMatchScore = targetCount > 0
+      ? (Math.min(colorMatchCount, targetCount) / denom) * colorWeight
+      : 0;
+
+    let positionMatchScore = 0;
+    if (rule.positionRule && rule.positionRule.mode === 'x-center' && doneCount > 0 && targetCount > 0) {
+      const sorted = [...builtOfType].sort((a, b) => {
+        const aCenter = home.x + a.x + (a.w || 0) / 2;
+        const bCenter = home.x + b.x + (b.w || 0) / 2;
+        const ideal = home.x + home.w / 2;
+        return Math.abs(aCenter - ideal) - Math.abs(bCenter - ideal);
+      });
+      const bestPart = sorted[0];
+      const bestCenter = home.x + bestPart.x + (bestPart.w || 0) / 2;
+      const tolerance = Number(rule.positionRule.tolerancePx) || DEFAULT_GOAL_POSITION_TOLERANCE;
+      const dx = Math.abs(bestCenter - (home.x + home.w / 2));
+      const decay = clamp01(1 - dx / tolerance);
+      positionMatchScore = decay * positionWeight;
+    }
+
+    const partScore = countMatchScore + colorMatchScore + positionMatchScore;
+    matchScore += partScore;
+
+    breakdownRows.push({
+      partType,
+      targetCount,
+      doneCount,
+      countMatchScore,
+      colorMatchScore,
+      positionMatchScore,
+      partScore,
+      countWeight,
+      colorWeight,
+      positionWeight,
+    });
+  }
+
+  for (const [type, parts] of Object.entries(builtByType)) {
+    const expected = requiredByType[type] || 0;
+    if (parts.length > expected) {
+      extraCount += parts.length - expected;
+    } else if (expected === 0) {
+      extraCount += parts.length;
+    }
+  }
+
+  const extraPenaltyValue = goal?.penalties?.extraPart || -5;
+  const destroyPenaltyValue = goal?.penalties?.destroyedPart || -10;
+  const destroyedCount = Array.isArray(destroyedParts) ? destroyedParts.length : 0;
+  const extraPenalty = (extraPenaltyValue < 0 ? -1 : 1) * (Math.abs(extraPenaltyValue) * extraCount);
+  const destroyPenalty = (destroyPenaltyValue < 0 ? -1 : 1) * (Math.abs(destroyPenaltyValue) * destroyedCount);
+
+  const maxScore = goal?.score?.max ?? 100;
+  const baseScore = goal?.score?.base ?? 0;
+  const idealMatchRate = maxMatchScore > 0 ? clamp01(matchScore / maxMatchScore) : 0;
+  const matchScaled = idealMatchRate * (maxScore - baseScore);
+  const totalScore = matchScaled + baseScore + extraPenalty + destroyPenalty;
+
+  return {
+    score: Math.round(Math.max(goal?.score?.min ?? 0, Math.min(maxScore, totalScore))),
+    breakdown: {
+      baseScore,
+      maxScore,
+      targetMatchScore: Math.round(matchScore * 1000) / 1000,
+      maxMatchScore: Math.round(maxMatchScore * 1000) / 1000,
+      idealMatchRate,
+      matchScaled: Math.round(matchScaled * 1000) / 1000,
+      extraCount,
+      destroyedCount,
+      extraPenalty,
+      destroyPenalty,
+      extraPenaltyValue,
+      destroyPenaltyValue,
+      rows: breakdownRows,
+    },
+  };
+}
+
+function evaluateGoalScore(goalSpec = null, placedParts = [], destroyedParts = []) {
+  const targetGoal = goalSpec || activeGoal;
+  if (!targetGoal) {
+    return {
+      score: 0,
+      breakdown: {
+        baseScore: 0,
+        maxScore: 100,
+        targetMatchScore: 0,
+        maxMatchScore: 0,
+        idealMatchRate: 0,
+        matchScaled: 0,
+        extraCount: 0,
+        destroyedCount: 0,
+        extraPenalty: 0,
+        destroyPenalty: 0,
+        extraPenaltyValue: -5,
+        destroyPenaltyValue: -10,
+        rows: [],
+      },
+    };
+  }
+
+  const builtParts = (placedParts || []).filter((part) => part && part.built);
+  return buildGoalRuleScore(targetGoal, builtParts, destroyedParts);
+}
+
+function getActiveGoalForUi() {
+  if (!activeGoal) {
+    return null;
+  }
+  return cloneGoal(activeGoal);
+}
+
+function getGoalStateForUi() {
+  return {
+    activeGoal: getActiveGoalForUi(),
+    lastGoalId,
+    score: goalScore,
+    scoreVisible,
+    breakdown: goalScoreBreakdown,
+  };
+}
+
+function setGoalScoreState(scoreState) {
+  const next = scoreState || {};
+  if (typeof next.score === 'number') {
+    goalScore = next.score;
+  }
+  if (typeof next.breakdown === 'object') {
+    goalScoreBreakdown = next.breakdown;
+  }
+  if (typeof next.scoreVisible === 'boolean') {
+    scoreVisible = next.scoreVisible;
+  }
+}
 
 const clouds = [
   { x: 150, y: 40, w: 68, h: 18, speed: 8, depth: 0.22 },
@@ -100,6 +544,7 @@ const HOUSE_PART_LABELS = {
   roof: '屋根',
   chimney: '煙突',
   door: '扉',
+  column: '柱',
   window: '窓',
   default: '部品',
 };
@@ -115,7 +560,7 @@ const BUILD_COMMAND_RULES = [
   { re: /煙突|煙だ|煙突|chimney|smokestack/, label: '煙突', partType: 'chimney' },
   { re: /門|とびら|出入口|入口|door|doors|entrance/, label: '門', partType: 'door' },
   { re: /窓|まど|ガラス|window|windows|glass/, label: '窓', partType: 'window' },
-  { re: /柱|たて|支柱|column|columns|pillar|pillars/, label: '柱', partType: 'wall' },
+  { re: /柱|たて|支柱|column|columns|pillar|pillars/, label: '柱', partType: 'column' },
   {
     re: /家|建築|建て|建てて|設置|置いて|置く|作って|作成|house|home|build|building|construct|create|add|place/,
     label: '建築全般',
@@ -129,6 +574,7 @@ const BUILD_KEYWORDS = {
   chimney: ['chimney', 'smokestack'],
   door: ['door', 'doors', 'entrance'],
   window: ['window', 'windows', 'glass'],
+  column: ['column', 'columns', 'pillar', 'pillars'],
   house: ['house', 'home'],
 };
 
@@ -243,13 +689,15 @@ function addMessage(text) {
 }
 
 function createHouseParts() {
-  return HOUSE_PART_BLUEPRINT.map((part, index) => ({
+  const blueprint = getHousePartBlueprintForGoal(activeGoal);
+  return blueprint.map((part, index) => ({
     id: index,
     type: part.type,
     x: part.x,
     y: part.y,
     w: part.w || 0,
     h: part.h || 0,
+    colorHex: part.colorHex || null,
     ...(part.type === 'roof' ? { roofShape: part.roofShape || DEFAULT_ROOF_SHAPE } : {}),
     built: false,
     builtBy: null,
@@ -275,3 +723,10 @@ function resetNpcCommandState(npc) {
   npc.buildQuantity = 1;
   npc.isListeningToPlayer = false;
 }
+
+window.selectRandomGoal = selectRandomGoal;
+window.getActiveGoalForUi = getActiveGoalForUi;
+window.getHousePartBlueprintForGoal = getHousePartBlueprintForGoal;
+window.getGoalStateForUi = getGoalStateForUi;
+window.setGoalScoreState = setGoalScoreState;
+window.evaluateGoalScore = evaluateGoalScore;

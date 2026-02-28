@@ -17,6 +17,7 @@ function createHousePartFromTemplate(template, options = {}) {
     y: options.y !== undefined ? options.y : template.y,
     w: options.w !== undefined ? options.w : (template.w || 0),
     h: options.h !== undefined ? options.h : (template.h || 0),
+    colorHex: template.colorHex || null,
     ...(template.type === 'roof'
       ? {
           roofShape:
@@ -30,7 +31,10 @@ function createHousePartFromTemplate(template, options = {}) {
 }
 
 function getHousePartTemplateByType(type) {
-  return HOUSE_PART_BLUEPRINT.find((part) => part.type === type);
+  const blueprint = typeof getHousePartBlueprintForGoal === 'function'
+    ? getHousePartBlueprintForGoal(activeGoal)
+    : HOUSE_PART_BLUEPRINT;
+  return blueprint.find((part) => part.type === type);
 }
 
 function createExtraWindowPart() {
@@ -315,6 +319,7 @@ function getEnglishLabel(japaneseLabel) {
     '屋根': 'roof',
     '煙突': 'chimney',
     '門': 'door',
+    '柱': 'column',
     '窓': 'window',
     '建築全般': 'house'
   };
@@ -415,6 +420,7 @@ function isBuildingCommand(text) {
   const hasChimney = hasAnyWord(BUILD_KEYWORDS.chimney);
   const hasDoor = hasAnyWord(BUILD_KEYWORDS.door);
   const hasWindow = hasAnyWord(BUILD_KEYWORDS.window);
+  const hasColumn = hasAnyWord(BUILD_KEYWORDS.column);
   const hasHouse = hasAnyWord(BUILD_KEYWORDS.house);
 
   if (hasBuildVerb) {
@@ -438,6 +444,9 @@ function isBuildingCommand(text) {
     }
     if (hasDoor) {
       return { isBuild: true, interpretation: `I added a door${quantityText}!`, preferredPartType: 'door', quantity };
+    }
+    if (hasColumn) {
+      return { isBuild: true, interpretation: `I added a column${quantityText}!`, preferredPartType: 'column', quantity };
     }
     if (hasWindow) {
       return { isBuild: true, interpretation: `I added a window${quantityText}!`, preferredPartType: 'window', quantity };
