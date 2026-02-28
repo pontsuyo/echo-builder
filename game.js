@@ -1,0 +1,379 @@
+
+      const canvas = document.getElementById('game');
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width;
+      const H = canvas.height;
+      const TILE = 16;
+      const SCALE = 1;
+      const LOGICAL_W = W / SCALE;
+      const LOGICAL_H = H / SCALE;
+      const GRAVITY = 1200;
+      const MOVE_SPEED = 180;
+      const JUMP = 420;
+
+      const levelMap = [
+        '............................................................................................................',
+        '............................................................................................................',
+        '............................................................................................................',
+        '............................................................................................................',
+        '.............................................................................###....................',
+        '....................................................................................................E....',
+        '......#########....................................................##########..................###.....',
+        '............................................................................................................',
+        '...............................................#######........................................##............',
+        '............................................................................................................',
+        '.........................#######.............................................................#####.........',
+        '............................................................................................................',
+        '.....................................................................................#####..............',
+        '....................###.....................######......................................................',
+        '............................................................................................................',
+        '......######............................................................######.........................',
+        '............................................................................................................',
+        '########################################################################################################',
+        '########################################################################################################',
+        '########################################################################################################',
+        '########################################################################################################',
+      ];
+
+      const MAP_W = levelMap[0].length;
+      const MAP_H = levelMap.length;
+      const WORLD_W = MAP_W * TILE;
+      const WORLD_H = MAP_H * TILE;
+
+      const playerSpawn = { x: 24, y: 220 };
+      const finishX = (MAP_W - 6) * TILE;
+
+      const tiles = {
+        solid: '#',
+        enemy: 'E',
+      };
+
+      const keys = new Set();
+
+      const player = {
+        x: playerSpawn.x,
+        y: playerSpawn.y,
+        w: 12,
+        h: 14,
+        vx: 0,
+        vy: 0,
+        onGround: false,
+        lives: 3,
+        score: 0,
+        dead: false,
+      };
+
+      const enemies = [
+        {
+          x: 270,
+          y: 230,
+          w: 12,
+          h: 12,
+          vx: 60,
+          minX: 250,
+          maxX: 430,
+        },
+        {
+          x: 730,
+          y: 162,
+          w: 12,
+          h: 12,
+          vx: 70,
+          minX: 690,
+          maxX: 980,
+        },
+        {
+          x: 1210,
+          y: 126,
+          w: 12,
+          h: 12,
+          vx: 90,
+          minX: 1150,
+          maxX: 1330,
+        },
+      ];
+
+      let clear = false;
+      let message = '2D Dot Action';
+      let lastTime = performance.now();
+      let cameraX = 0;
+
+      function tileAt(x, y) {
+        const tx = Math.floor(x / TILE);
+        const ty = Math.floor(y / TILE);
+        if (ty < 0 || ty >= MAP_H || tx < 0 || tx >= MAP_W) {
+          return '#';
+        }
+        return levelMap[ty][tx];
+      }
+
+      function isSolid(x, y) {
+        return tileAt(x, y) === tiles.solid;
+      }
+
+      function rectsOverlap(a, b) {
+        return !(
+          a.x + a.w <= b.x ||
+          a.x >= b.x + b.w ||
+          a.y + a.h <= b.y ||
+          a.y >= b.y + b.h
+        );
+      }
+
+      function resetPlayer() {
+        player.x = playerSpawn.x;
+        player.y = playerSpawn.y;
+        player.vx = 0;
+        player.vy = 0;
+        player.onGround = false;
+      }
+
+      function resetGame() {
+        clear = false;
+        player.lives = 3;
+        player.dead = false;
+        message = '2D Dot Action';
+        resetPlayer();
+        enemies.forEach((e, i) => {
+          const baseX = [270, 730, 1210];
+          e.x = baseX[i];
+        });
+        addMessage(message);
+      }
+
+      function addMessage(text) {
+        message = text;
+      }
+
+      function handleCollisions(dt) {
+        player.onGround = false;
+
+        // Horizontal collision
+        if (player.vx !== 0) {
+          const nextX = player.x + player.vx * dt;
+          const checkX = player.vx > 0 ? nextX + player.w : nextX;
+          const foot = [player.y + 1, player.y + player.h - 1];
+          const hit = foot.some((yy) => isSolid(checkX, yy));
+          if (!hit) {
+            player.x = nextX;
+          } else {
+            if (player.vx > 0) {
+              player.x = Math.floor(checkX / TILE) * TILE - player.w - 0.01;
+            } else {
+              player.x = (Math.floor(checkX / TILE) + 1) * TILE + 0.01;
+            }
+            player.vx = 0;
+          }
+        }
+
+        // Vertical collision
+        const nextY = player.y + player.vy * dt;
+        const testX = [player.x + 1, player.x + player.w - 1];
+        if (player.vy > 0) {
+          const py = player.y + player.h + (nextY - player.y);
+          const hit = testX.some((xx) => isSolid(xx, py));
+          if (!hit) {
+            player.y = nextY;
+          } else {
+            player.vy = 0;
+            player.onGround = true;
+            player.y = Math.floor((player.y + player.h + (nextY - player.y)) / TILE) * TILE - player.h - 0.01;
+          }
+        } else if (player.vy < 0) {
+          const py = player.y + (nextY - player.y);
+          const hit = testX.some((xx) => isSolid(xx, py));
+          if (!hit) {
+            player.y = nextY;
+          } else {
+            player.vy = 0;
+            player.y = (Math.floor(player.y / TILE) + 1) * TILE + 0.01;
+          }
+        } else {
+          player.y = nextY;
+        }
+
+        // Keep inside world
+        if (player.x < 0) player.x = 0;
+        if (player.x + player.w > MAP_W * TILE) player.x = MAP_W * TILE - player.w;
+        if (player.y + player.h > MAP_H * TILE) {
+          player.lives -= 1;
+          addMessage('落下しました… -1');
+          if (player.lives > 0) {
+            resetPlayer();
+          } else {
+            addMessage('ゲームオーバー Rで再開');
+            clear = true;
+          }
+        }
+      }
+
+      function collectItems() {
+        const cx = Math.floor((player.x + player.w / 2) / TILE);
+        const cy = Math.floor((player.y + player.h / 2) / TILE);
+        if (tileAt(player.x, player.y) === 'C') {
+          // no map coins currently
+        }
+        if (player.x > finishX) {
+          addMessage('ゴール！ Rで再挑戦');
+          clear = true;
+        }
+      }
+
+      function updatePlayer(dt) {
+        if (clear || player.dead) return;
+
+        player.vy += GRAVITY * dt;
+
+        if ((keys.has('ArrowLeft') || keys.has('KeyA')) && !keys.has('ArrowRight') && !keys.has('KeyD')) {
+          player.vx = -MOVE_SPEED;
+        } else if ((keys.has('ArrowRight') || keys.has('KeyD')) && !keys.has('ArrowLeft') && !keys.has('KeyA')) {
+          player.vx = MOVE_SPEED;
+        } else {
+          player.vx *= 0.6;
+          if (Math.abs(player.vx) < 6) player.vx = 0;
+        }
+
+        handleCollisions(dt);
+
+        if (player.y + player.h >= WORLD_H) {
+          player.vy = 0;
+          player.onGround = true;
+        }
+
+        // enemy touch
+        for (const e of enemies) {
+          if (rectsOverlap(player, e)) {
+            player.lives -= 1;
+            if (player.lives <= 0) {
+              addMessage('ゲームオーバー Rで再開');
+              clear = true;
+              player.dead = true;
+            } else {
+              addMessage(`被弾! 残り ${player.lives} 体`);
+              resetPlayer();
+            }
+            break;
+          }
+        }
+
+        collectItems();
+      }
+
+      function updateEnemies(dt) {
+        for (const e of enemies) {
+          e.x += e.vx * dt;
+          if (e.x < e.minX) {
+            e.x = e.minX;
+            e.vx = Math.abs(e.vx);
+          }
+          if (e.x + e.w > e.maxX) {
+            e.x = e.maxX - e.w;
+            e.vx = -Math.abs(e.vx);
+          }
+        }
+      }
+
+      function updateCamera() {
+        cameraX = Math.max(0, Math.min(player.x - W / (2 * SCALE), WORLD_W - W / SCALE));
+      }
+
+      function drawMap() {
+        for (let y = 0; y < MAP_H; y++) {
+          for (let x = 0; x < MAP_W; x++) {
+            const ch = levelMap[y][x];
+            if (ch === '#') {
+              ctx.fillStyle = '#4b5568';
+              drawTile(x * TILE, y * TILE, 1);
+            }
+          }
+        }
+      }
+
+      function drawTile(x, y, alpha = 1) {
+        const sx = (x - cameraX) * SCALE;
+        const sy = y * SCALE;
+        if (sx + TILE * SCALE < 0 || sx > W || sy + TILE * SCALE < 0 || sy > H) return;
+        ctx.globalAlpha = alpha;
+        ctx.fillRect(sx, sy, TILE * SCALE, TILE * SCALE);
+        ctx.globalAlpha = 1;
+      }
+
+      function draw() {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.imageSmoothingEnabled = false;
+        ctx.clearRect(0, 0, W, H);
+        ctx.fillStyle = '#1a2030';
+        ctx.fillRect(0, 0, W, H);
+
+        drawMap();
+
+        for (const e of enemies) {
+          const sx = (e.x - cameraX) * SCALE;
+          const sy = e.y * SCALE;
+          if (sx + e.w * SCALE < 0 || sx > W || sy + e.h * SCALE < 0 || sy > H) continue;
+          ctx.fillStyle = '#ff3d3d';
+          // ドット風: 2x2で色を変える
+          ctx.fillRect(sx, sy, e.w * SCALE, e.h * SCALE);
+          ctx.fillStyle = '#ff9a9a';
+          ctx.fillRect(sx + 1, sy + 1, 4, 4);
+          ctx.fillRect(sx + e.w * SCALE - 5, sy + 1, 4, 4);
+        }
+
+        // Player
+        const px = (player.x - cameraX) * SCALE;
+        const py = player.y * SCALE;
+        ctx.fillStyle = '#87ff9e';
+        ctx.fillRect(px, py, player.w * SCALE, player.h * SCALE);
+        // eye
+        ctx.fillStyle = '#003b14';
+        ctx.fillRect(px + (player.vx >= 0 ? player.w - 3 : 3), py + 4, 2, 2);
+
+        // HUD
+        ctx.fillStyle = '#e5ecff';
+        ctx.font = '16px "Courier New", monospace';
+        ctx.fillText(`HP: ${player.lives}  SCORE: ${player.score}  X:${Math.floor(player.x)}  Y:${Math.floor(player.y)}`, 8, 18);
+        ctx.fillText(message, 8, 34);
+      }
+
+      function update(dt) {
+        if (!clear) {
+          updatePlayer(dt);
+          updateEnemies(dt);
+          updateCamera();
+        }
+      }
+
+      function loop(now) {
+        const dt = Math.min(0.033, (now - lastTime) / 1000);
+        lastTime = now;
+
+        update(dt);
+        draw();
+
+        requestAnimationFrame(loop);
+      }
+
+      window.addEventListener('keydown', (e) => {
+        keys.add(e.code);
+        if (e.code === 'Space' || e.code === 'KeyZ') {
+          if (player.onGround && !clear) {
+            player.vy = -JUMP;
+            player.onGround = false;
+          }
+          e.preventDefault();
+        }
+        if (e.key === 'r' || e.key === 'R' || e.code === 'KeyR') {
+          e.preventDefault();
+          resetGame();
+        }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        keys.delete(e.code);
+      });
+
+      resetPlayer();
+      message = '2D Dot Action - 2Dドット風ミニゲーム';
+      addMessage(message);
+      requestAnimationFrame(loop);
+    
