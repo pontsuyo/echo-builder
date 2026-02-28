@@ -38,7 +38,17 @@ function getHousePartTemplateByType(type) {
 }
 
 function createExtraWindowPart() {
-  const template = getHousePartTemplateByType('window');
+  const template =
+    getHousePartTemplateByType('window')
+    || HOUSE_PART_BLUEPRINT_DEFAULT.find((part) => part.type === 'window')
+    || {
+      type: 'window',
+      x: 12,
+      y: 22,
+      w: 12,
+      h: 10,
+      colorHex: palette.houseWindow || '#fdf8b8',
+    };
   if (!template) {
     return null;
   }

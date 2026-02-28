@@ -1,6 +1,7 @@
 function resetGame() {
   clear = false;
   houseRevealMicStopped = false;
+  scorePopupShownAt = 0;
   addMessage('2D Dot Meadow - リトライ可能');
   resetPlayer();
   selectRandomGoal(Date.now());
@@ -25,6 +26,7 @@ function resetGame() {
 }
 
 let houseRevealMicStopped = false;
+let scorePopupShownAt = 0;
 
 function stopHouseRevealMicIfNeeded() {
   if (houseRevealMicStopped) {
@@ -225,6 +227,7 @@ function updateCamera(dt) {
         goalScore = evaluated.score;
         goalScoreBreakdown = evaluated.breakdown;
         scoreVisible = true;
+        scorePopupShownAt = performance.now();
 
         if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
           window.dispatchEvent(
@@ -468,6 +471,32 @@ function getGoalHintTextLines() {
   return lines;
 }
 
+function getScorePanelTextLines() {
+  if (!scoreVisible || !Number.isFinite(Number(goalScore))) {
+    return [];
+  }
+
+  const scoreValue = Number(goalScore);
+  if (!goalScoreBreakdown) {
+    return [`Score: ${scoreValue} pts`];
+  }
+
+  const rate = Math.round((goalScoreBreakdown.idealMatchRate || 0) * 100);
+  const extraPenalty = Number.isFinite(goalScoreBreakdown.extraPenalty) ? goalScoreBreakdown.extraPenalty : 0;
+  const destroyPenalty = Number.isFinite(goalScoreBreakdown.destroyPenalty) ? goalScoreBreakdown.destroyPenalty : 0;
+  const penalty = extraPenalty + destroyPenalty;
+  const extraCount = Number.isFinite(goalScoreBreakdown.extraCount) ? goalScoreBreakdown.extraCount : 0;
+  const destroyedCount = Number.isFinite(goalScoreBreakdown.destroyedCount) ? goalScoreBreakdown.destroyedCount : 0;
+
+  return [
+    `Score: ${scoreValue} pts`,
+    `Match: ${rate}%`,
+    `Penalty: ${penalty}`,
+    `  Extra: ${extraPenalty} pts (${extraCount} pieces)`,
+    `  Destroy: ${destroyPenalty} pts (${destroyedCount} pieces)`,
+  ];
+}
+
 const GOAL_HINT_IMAGE_FALLBACK_PATH = '/images/goal-house-game-equivalent-1.svg';
 const goalHintImageStateCache = Object.create(null);
 
@@ -520,9 +549,7 @@ function getGoalHintImageState(path = null) {
 }
 
 function drawGoalHintPanel() {
-  const imageState = getGoalHintImageState(getGoalHintImageSource());
-
-  if (!imageState.image || !imageState.loaded || imageState.failed) {
+  if (!scoreVisible) {
     return;
   }
 
@@ -530,24 +557,159 @@ function drawGoalHintPanel() {
   const y = 96;
   const width = 252;
   const padding = 8;
-  const maxImageWidth = width - padding * 2;
-  const maxImageHeight = Math.min(180, Math.max(1, H - y - 12));
+  const lineHeight = 14;
+  const lines = getScorePanelTextLines();
 
-  const image = imageState.image;
-  const ratio = image.naturalWidth
-    ? image.naturalWidth / Math.max(1, image.naturalHeight)
-    : 1;
-  let drawWidth = Math.min(maxImageWidth, image.naturalWidth || maxImageWidth);
-  let drawHeight = drawWidth / ratio;
+  if (!lines.length) {
+    return;
+  }
+  const textLines = (lines || []).map((line) => String(line || ''));
+  const maxTextLines = Math.floor((H - y - padding * 2 - 1) / lineHeight);
+  const safeTextLines = textLines.slice(0, Math.max(1, maxTextLines));
+  const textAreaHeight = safeTextLines.length * lineHeight + padding;
+  const panelHeight = Math.min(H - 4 - y, textAreaHeight + padding);
 
-  if (drawHeight > maxImageHeight) {
-    drawHeight = maxImageHeight;
-    drawWidth = drawHeight * ratio;
+  if (panelHeight <= 0) return;
+
+  ctx.fillStyle = 'rgba(7, 17, 30, 0.75)';
+  ctx.fillRect(x, y, width, panelHeight);
+  ctx.strokeStyle = 'rgba(233, 242, 255, 0.75)';
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, panelHeight - 1);
+
+  ctx.fillStyle = '#f1f6ff';
+  ctx.font = '10px "Courier New", monospace';
+  for (let i = 0; i < safeTextLines.length; i += 1) {
+    const drawY = y + padding / 2 + i * lineHeight;
+    if (drawY + lineHeight > y + panelHeight - 1) {
+      break;
+    }
+    ctx.fillText(safeTextLines[i], x + padding, drawY);
+  }
+}
+
+function drawScorePopupAboveHouse() {
+  if (!scoreVisible || !clear || scorePopupShownAt <= 0) {
+    return;
   }
 
-  const dx = x + (width - drawWidth) / 2;
-  const dy = y + padding + (maxImageHeight - drawHeight) / 2;
-  ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
+  const lines = getScorePanelTextLines();
+  if (!lines.length) {
+    return;
+  }
+
+  const homeScreenX = home.x - cameraX;
+  const houseScreenY = FLOOR_Y - home.h;
+  if (homeScreenX + home.w < -20 || homeScreenX > W + 20) {
+    return;
+  }
+
+  const elapsed = Math.max(0, performance.now() - scorePopupShownAt);
+  const appear = clamp01(Math.min(elapsed / 450, 1));
+  const pulse = 1 + Math.sin(elapsed / 170) * 0.025;
+  const floatY = (1 - appear) * 8;
+
+  const font = 'bold 14px "Courier New", monospace';
+  ctx.save();
+  ctx.font = font;
+
+  const maxTextWidth = lines.reduce((maxWidth, line) => {
+    return Math.max(maxWidth, ctx.measureText(String(line || '')).width);
+  }, 0);
+
+  const lineHeight = 18;
+  const panelH = Math.max(90, lines.length * lineHeight + 56);
+  const panelW = Math.min(W - 12, Math.ceil(maxTextWidth) + 32);
+  const panelX = clamp(Math.round(homeScreenX + home.w + 8), 6, W - panelW - 6);
+  const panelY = Math.max(6, Math.round(houseScreenY - panelH - 16 + floatY));
+
+  const centerX = homeScreenX + home.w / 2;
+  const pointerTipY = houseScreenY + 10;
+
+  ctx.translate(panelX + panelW / 2, panelY + panelH / 2);
+  ctx.scale(pulse, pulse);
+  ctx.globalAlpha = 0.2 + 0.8 * appear;
+
+  const rectX = -panelW / 2;
+  const rectY = -panelH / 2;
+  const textX = rectX + 12;
+  const textY = rectY + 12;
+
+  ctx.fillStyle = 'rgba(5, 18, 33, 0.9)';
+  ctx.strokeStyle = 'rgba(255, 236, 160, 0.95)';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = 'rgba(255, 230, 120, 0.8)';
+  ctx.shadowBlur = 12 + 12 * appear;
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(rectX, rectY, panelW, panelH, 10);
+  } else {
+    ctx.beginPath();
+    ctx.rect(rectX, rectY, panelW, panelH);
+  }
+  ctx.fill();
+  ctx.stroke();
+
+  const pointerY = rectY + panelH;
+  const tailBaseX = panelW / 2 - 8;
+  const tailTipX = centerX - (panelX + panelW / 2);
+  const tailTipY = pointerTipY - (panelY + panelH / 2);
+  ctx.beginPath();
+  ctx.moveTo(tailBaseX, pointerY);
+  ctx.lineTo(clamp(tailTipX, -panelW / 2 + 10, panelW / 2 - 10), pointerY + 12);
+  ctx.lineTo(tailBaseX + 16, pointerY);
+  ctx.fillStyle = 'rgba(5, 18, 33, 0.9)';
+  ctx.strokeStyle = 'rgba(255, 236, 160, 0.95)';
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(tailBaseX + 8, pointerY + 12);
+  ctx.lineTo(tailTipX, tailTipY);
+  ctx.lineTo(tailBaseX - 8, pointerY + 12);
+  ctx.fillStyle = 'rgba(255, 245, 170, 0.55)';
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent';
+  ctx.fillStyle = '#ffeec8';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(String(lines[0]), textX, textY);
+  if (lines.length > 1) {
+    ctx.font = '13px "Courier New", monospace';
+    for (let i = 1; i < lines.length; i += 1) {
+      ctx.fillText(String(lines[i]), textX, textY + i * lineHeight);
+    }
+  }
+
+  const footerBaseY = rectY + lines.length * lineHeight + 24;
+  const titleText = 'BUILD COMPLETE';
+  const retryText = 'Press R to retry';
+
+  ctx.font = 'bold 13px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffd27a';
+  ctx.globalAlpha = 0.94 * appear;
+  ctx.fillText(titleText, 0, footerBaseY - 8);
+
+  ctx.font = '11px "Courier New", monospace';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.globalAlpha = 0.85 * appear;
+  ctx.fillText(retryText, 0, footerBaseY + 4);
+
+  ctx.textAlign = 'left';
+  ctx.restore();
+
+  if (scorePopupShownAt > 0 && elapsed > 1200) {
+    const flicker = Math.floor((elapsed % 700) / 70) % 2 === 0;
+    if (flicker && appear >= 1) {
+      // ちらつく小さな光点
+      const sparkX = panelX + 10 + (Math.sin(elapsed / 110) * 8 + 10) % panelW;
+      const sparkY = panelY + 12 + ((Math.cos(elapsed / 140) * 6 + 10) % 10);
+      ctx.fillStyle = 'rgba(255, 250, 190, 0.9)';
+      ctx.fillRect(sparkX, sparkY, 2, 2);
+    }
+  }
 }
 
 function drawHouse() {
@@ -1068,7 +1230,7 @@ function draw() {
   ctx.fillText('音声デバッグ:', 8, 66);
   ctx.fillText(liveTranscriptLine, 8, 82);
 
-  // ゴール画像はプレイヤー頭上の吹き出しに統一して表示する
+  drawScorePopupAboveHouse();
   drawCommandResultPanel();
 }
 
