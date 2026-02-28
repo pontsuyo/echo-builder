@@ -1889,53 +1889,11 @@
   window.pauseVoxtralMic = () => stopMicCapture({ finalize: false });
   window.resumeVoxtralMic = () => startMicCapture();
   window.setupVoxtralIntegration = setupIntegration;
+  window.__voxtralState = { isMicActive };
 
-  if (micButton) {
-    micButton.disabled = false;
-    micButton.addEventListener('click', () => {
-      if (!micActive) {
-        startMicCapture();
-      } else {
-        stopMicCapture();
-      }
-    });
-  }
+  // UI側で使うためにエクスポート
+  window.__voxtralSendTestAudio = sendTestAudio;
 
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'm' || e.key === 'M' || e.code === 'KeyM') {
-      e.preventDefault();
-      if (!micActive) {
-        startMicCapture();
-      } else {
-        stopMicCapture();
-      }
-    }
-  });
-
-  // デバッグ用: テストボタンのイベントリスナー
-  const testRedRoofButton = document.getElementById('test-red-roof');
-  const testTwoWindowsButton = document.getElementById('test-two-windows');
-  const testTwoDotsButton = document.getElementById('test-two-dots');
-
-  if (testRedRoofButton) {
-    testRedRoofButton.addEventListener('click', () => {
-      sendTestAudio('wav/build_a_red_roof.wav');
-    });
-  }
-
-  if (testTwoWindowsButton) {
-    testTwoWindowsButton.addEventListener('click', () => {
-      sendTestAudio('wav/put_two_windows.wav');
-    });
-  }
-
-  if (testTwoDotsButton) {
-    testTwoDotsButton.addEventListener('click', () => {
-      sendTestAudio('wav/there should be two .mp3');
-    });
-  }
-
-  // テスト用オーディオファイル送信関数
   async function sendTestAudio(filePath) {
     if (isRequesting) {
       logDebug('前のリクエストが完了していません');
@@ -1946,7 +1904,6 @@
       isRequesting = true;
       logDebug(`テストオーディオ送信開始: ${filePath}`);
 
-      // ファイルをfetchで読み込む
       const response = await fetch(filePath);
       if (!response.ok) {
         throw new Error(`ファイル読み込み失敗: ${response.status} - ${filePath}`);
