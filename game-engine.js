@@ -727,7 +727,7 @@ function drawPlayerSpeechBubble(anchorX, topY, isListening = false, opacity = 1.
     drawW = drawH * ratio;
   }
   const dx = imageArea.x + (imageArea.w - drawW) / 2;
-  const dy = imageArea.y + (imageArea.h - drawH) / 2;
+  const dy = imageArea.y + (imageArea.h - drawH) / 2 + 6;
   ctx.drawImage(img, dx, dy, drawW, drawH);
   ctx.globalAlpha = 1.0;
 }
