@@ -3,20 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>2D Dot Action (No Framework)</title>
+    <title>2D Dot Meadow</title>
     <style>
       :root {
-        --bg: #101218;
-        --fg: #eef2ff;
+        --bg: #0a1421;
+        --fg: #e9f2ff;
       }
 
       html,
       body {
         margin: 0;
         height: 100%;
-        background: var(--bg);
+        background: radial-gradient(circle at 15% 15%, #1b3658, var(--bg) 45%);
         color: var(--fg);
-        font-family: 'Courier New', monospace;
+        font-family: 'VT323', 'Courier New', 'Menlo', monospace;
         overflow: hidden;
       }
 
@@ -27,35 +27,36 @@
 
       #wrap {
         display: grid;
-        gap: 8px;
+        gap: 10px;
         justify-items: center;
       }
 
       canvas {
-        width: min(92vw, 960px);
-        height: min(52vw, 540px);
+        width: min(96vw, 1280px);
+        aspect-ratio: 16 / 9;
         max-height: 92vh;
         image-rendering: pixelated;
-        border: 2px solid #2e3440;
-        background: #222831;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        border: 3px solid #5b6a8a;
+        background: #081327;
+        box-shadow: 0 16px 50px rgba(0, 0, 0, 0.55);
       }
 
       .hint {
-        font-size: 12px;
-        color: #9aa4bc;
+        font-size: 14px;
+        color: #a7bfdc;
       }
 
       .toolbar {
         display: flex;
         gap: 8px;
         align-items: center;
+        justify-content: center;
       }
 
       button {
-        border: 1px solid #3b4252;
-        background: #1f2533;
-        color: #d5ddf2;
+        border: 1px solid #44567c;
+        background: #1c2e4b;
+        color: #d9e6ff;
         padding: 4px 8px;
         cursor: pointer;
       }
@@ -80,9 +81,9 @@
       window.__MISTRAL_PROXY_URL = 'http://127.0.0.1:8001';
       window.__MISTRAL_API_MODEL = 'mistral-small-latest';
       window.__MISTRAL_AUDIO_TRANSCRIPT_MODEL = 'voxtral-mini-latest';
-      window.__MISTRAL_DEBUG = true; // 詳細ログ
+      window.__MISTRAL_DEBUG = true;
     </script>
     <script src="voxtral.js?v=3" defer></script>
-    <script src="game.js?v=2" defer></script>
+    <script src="game.js?v=5" defer></script>
   </body>
 </html>
