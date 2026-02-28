@@ -1815,24 +1815,29 @@ function draw() {
   // HUD
   ctx.fillStyle = '#e9f2ff';
   ctx.font = '14px "Courier New", monospace';
-  ctx.fillText(message, 8, 34);
-  ctx.fillText(`X:${Math.floor(player.x)} / ${WORLD_W}`, 8, 50);
+  if (showDebugOverlay) {
+    ctx.fillText(message, 8, 34);
+  }
 
-  // NPC座標デバッグ情報
-  ctx.fillText('NPC Positions:', W - 200, 34);
-  npcs.forEach((npc, i) => {
-    ctx.fillText(`ID${npc.id}: X${Math.floor(npc.x)} Y${Math.floor(npc.y)} ${npc.commandState}`, W - 200, 50 + i * 20);
-  });
+  if (showDebugOverlay) {
+    // NPC座標 debug情報
+    ctx.fillText('NPC Positions:', W - 200, 34);
+    npcs.forEach((npc, i) => {
+      ctx.fillText(`ID${npc.id}: X${Math.floor(npc.x)} Y${Math.floor(npc.y)} ${npc.commandState}`, W - 200, 50 + i * 20);
+    });
 
-  ctx.fillText('音声デバッグ:', 8, 66);
-  ctx.fillText(liveTranscriptLine, 8, 82);
+    ctx.fillText('音声debug:', 8, 66);
+    ctx.fillText(liveTranscriptLine, 8, 82);
+  }
 
   if (clear) {
     drawRecognizedTranscriptDock(hoveredInterpretationRow, commandRows);
   }
 
   drawScorePopupAboveHouse();
-  drawCommandResultPanel();
+  if (showDebugOverlay) {
+    drawCommandResultPanel();
+  }
 }
 
 function update(dt) {
@@ -1883,6 +1888,10 @@ if (resultToggleButton) {
   resultToggleButton.addEventListener('click', toggleCommandResultPanel);
 }
 
+if (debugToggleButton) {
+  debugToggleButton.addEventListener('click', toggleDebugOverlay);
+}
+
 if (canvas) {
   canvas.addEventListener('mousemove', updatePointerCanvasPosition);
   canvas.addEventListener('mouseenter', updatePointerCanvasPosition);
@@ -1894,6 +1903,7 @@ if (canvas) {
 
 window.resetGame = resetGame;
 updateCommandButtons();
+updateDebugToggleButton();
 
 window.render_game_to_text = () =>
   JSON.stringify({

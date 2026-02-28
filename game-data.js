@@ -1,9 +1,28 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const resultToggleButton = document.getElementById('toggle-command-result');
+const W = 640;
+const H = 360;
 
-const W = canvas.width;
-const H = canvas.height;
+function resizeCanvasForDpr() {
+  if (!canvas || !ctx) {
+    return;
+  }
+
+  const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  const rect = canvas.getBoundingClientRect();
+  const cssW = Math.max(1, rect.width || W);
+  const cssH = Math.max(1, rect.height || H);
+
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  ctx.setTransform(cssW / W, 0, 0, cssH / H, 0, 0);
+}
+
+resizeCanvasForDpr();
+window.addEventListener('resize', resizeCanvasForDpr, { passive: true });
+const resultToggleButton = document.getElementById('toggle-command-result');
+const debugToggleButton = document.getElementById('toggle-debug-overlay');
+const debugOnlyButtons = Array.from(document.querySelectorAll('.test-button'));
 
 const WORLD_W = 3200;
 const FLOOR_Y = 250;
@@ -598,6 +617,7 @@ const commandSession = {
   cursor: 0,
 };
 let showCommandResults = false;
+let showDebugOverlay = true;
 let commandResultRows = [];
 houseParts = createHouseParts();
 
@@ -768,6 +788,20 @@ function resetNpcCommandState(npc) {
   npc.listeningStartedAt = 0;
   npc.workStartSpeech = '';
   npc.workStartSpeechUntil = 0;
+}
+
+function updateDebugToggleButton() {
+  if (!debugToggleButton) return;
+  debugToggleButton.textContent = showDebugOverlay ? 'debug: ON' : 'debug: OFF';
+  debugOnlyButtons.forEach((button) => {
+    if (!button) return;
+    button.style.display = showDebugOverlay ? '' : 'none';
+  });
+}
+
+function toggleDebugOverlay() {
+  showDebugOverlay = !showDebugOverlay;
+  updateDebugToggleButton();
 }
 
 window.selectRandomGoal = selectRandomGoal;

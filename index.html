@@ -37,7 +37,7 @@
         width: min(96vw, 1280px);
         aspect-ratio: 16 / 9;
         max-height: 92vh;
-        image-rendering: pixelated;
+        image-rendering: auto;
         border: 3px solid #5b6a8a;
         background: #081327;
         box-shadow: 0 16px 50px rgba(0, 0, 0, 0.55);
@@ -63,6 +63,13 @@
         cursor: pointer;
       }
 
+      .debug-button {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 20;
+      }
+
       /* テストボタン用スタイル */
       .test-button {
         border: 1px solid #8b5cf6;
@@ -77,6 +84,8 @@
     </style>
   </head>
   <body>
+    <button id="toggle-debug-overlay" class="debug-button">debug: ON</button>
+
     <div id="wrap">
       <canvas id="game" width="640" height="360"></canvas>
       <div class="toolbar">

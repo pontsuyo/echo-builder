@@ -957,7 +957,7 @@ function getCommandResultRows() {
 }
 
 function drawCommandResultPanel() {
-  if (!showCommandResults) return;
+  if (!showDebugOverlay || !showCommandResults) return;
 
   const x = 8;
   const y = 72;
