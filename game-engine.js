@@ -71,6 +71,8 @@ function updateNpcs(dt) {
         npc.commandMarkUntil = 0;
         npc.isBuildCommand = false;
         npc.assignedBuildPartId = null;
+        npc.workStartSpeech = '';
+        npc.workStartSpeechUntil = 0;
         // 一度建築したら戻ってくる可能性は0なので、状態をCOMPLETEDに遷移させる
         npc.commandState = NPC_COMMAND_STATES.COMPLETED;
         npc.state = NPC_ACTIVITY_STATES.IDLE; // 到着後にアイドル状態に設定
@@ -846,6 +848,59 @@ function drawUninterpretedHintBubble(npc, sx, opacity = 1.0) {
   ctx.restore();
 }
 
+function shouldShowWorkStartSpeech(npc, nowMs = performance.now()) {
+  if (!npc || npc.commandState !== NPC_COMMAND_STATES.RETURN_HOME) return false;
+  const text = String(npc.workStartSpeech || '').trim();
+  if (!text) return false;
+  const until = Number(npc.workStartSpeechUntil || 0);
+  if (!Number.isFinite(until) || until <= 0) return false;
+  return nowMs <= until;
+}
+
+function drawWorkStartSpeechBubble(npc, sx, text, opacity = 1.0) {
+  const cleaned = String(text || '').trim();
+  if (!cleaned) return;
+
+  ctx.save();
+  ctx.font = '10px "Courier New", monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+
+  const maxBubbleW = Math.min(170, W - 4);
+  const bubbleW = clamp(Math.ceil(ctx.measureText(cleaned).width) + 14, 52, maxBubbleW);
+  const bubbleH = 17;
+  const anchorX = sx + npc.w * 0.5;
+  const bx = clamp(Math.round(anchorX - bubbleW / 2), 2, W - bubbleW - 2);
+  const by = Math.round(npc.y - bubbleH - 16);
+  const tailBaseX = clamp(anchorX, bx + 5, bx + bubbleW - 5);
+
+  ctx.globalAlpha = 0.95 * opacity;
+  ctx.fillStyle = '#fffbe9';
+  ctx.strokeStyle = '#473522';
+  ctx.lineWidth = 1;
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bubbleW, bubbleH, 5);
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    ctx.fillRect(bx, by, bubbleW, bubbleH);
+    ctx.strokeRect(bx + 0.5, by + 0.5, bubbleW - 1, bubbleH - 1);
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(tailBaseX - 2, by + bubbleH - 1);
+  ctx.lineTo(tailBaseX + 2, by + bubbleH - 1);
+  ctx.lineTo(anchorX, npc.y - 5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#2f2315';
+  ctx.fillText(cleaned, bx + 7, by + bubbleH / 2 + 0.5);
+  ctx.restore();
+}
+
 function draw() {
   ctx.imageSmoothingEnabled = false;
   drawSky();
@@ -880,6 +935,9 @@ function draw() {
     }, opacity);
 
     drawBuildMark(e, sx);
+    if (shouldShowWorkStartSpeech(e, nowMs)) {
+      drawWorkStartSpeechBubble(e, sx, e.workStartSpeech, opacity);
+    }
     if (shouldShowUninterpretedHint(e, nowMs)) {
       drawUninterpretedHintBubble(e, sx, opacity);
     }
@@ -1046,6 +1104,8 @@ window.render_game_to_text = () =>
       state: n.state,
       isListeningToPlayer: Boolean(n.isListeningToPlayer),
       questionBubbleVisible: shouldShowUninterpretedHint(n),
+      workStartSpeechVisible: shouldShowWorkStartSpeech(n),
+      workStartSpeechText: String(n.workStartSpeech || '').trim(),
     })),
     cameraX: Math.floor(cameraX),
     clear,

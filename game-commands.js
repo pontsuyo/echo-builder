@@ -335,6 +335,78 @@ function getEnglishLabel(japaneseLabel) {
   return labelMap[japaneseLabel] || japaneseLabel;
 }
 
+function getSpeechPartLabel(partType) {
+  const map = {
+    wall: 'walls',
+    roof: 'roof',
+    chimney: 'chimneys',
+    door: 'doors',
+    column: 'columns',
+    window: 'windows',
+  };
+  return map[partType] || 'parts';
+}
+
+function extractColorCue(text) {
+  const raw = String(text || '').toLowerCase();
+  if (!raw) return '';
+
+  const candidates = [
+    { label: 'red', re: /赤|red/ },
+    { label: 'blue', re: /青|blue/ },
+    { label: 'yellow', re: /黄|黄色|yellow/ },
+    { label: 'green', re: /緑|green/ },
+    { label: 'white', re: /白|white/ },
+    { label: 'black', re: /黒|black/ },
+  ];
+
+  const hit = candidates.find((candidate) => candidate.re.test(raw));
+  return hit ? hit.label : '';
+}
+
+function createWorkStartSpeech(spokenText, parsed) {
+  const quantity = Math.max(1, Number(parsed && parsed.quantity) || 1);
+  const preferredType = parsed && parsed.preferredPartType;
+  const roofShape = parsed && parsed.roofShape;
+  const colorCue = extractColorCue(spokenText);
+
+  if (colorCue) {
+    return `${colorCue}... so that's it!`;
+  }
+
+  if (preferredType === 'roof' && roofShape) {
+    const roofShapeLabel = roofShape === 'round'
+      ? 'round'
+      : roofShape === 'flat'
+        ? 'flat'
+        : roofShape;
+    return `${roofShapeLabel} roof... got it!`;
+  }
+
+  if (preferredType) {
+    const label = getSpeechPartLabel(preferredType);
+    if (quantity >= 3) {
+      return `So I should add a lot of ${label}, right?`;
+    }
+    if (quantity > 1) {
+      return `${quantity} ${label}... right!`;
+    }
+    return `${label}, right!`;
+  }
+
+  if (parsed && parsed.isBuild) {
+    if (quantity >= 3) {
+      return 'So I should add a lot, right?';
+    }
+    if (quantity > 1) {
+      return `${quantity} pieces... right!`;
+    }
+    return 'Okay, I should build it!';
+  }
+
+  return 'Hmm... maybe like this?';
+}
+
 function setListeningNpc(nextNpc) {
   for (const npc of npcs) {
     npc.isListeningToPlayer = false;
@@ -466,10 +538,15 @@ function isBuildingCommand(text) {
       return { isBuild: true, interpretation: `I built a house${quantityText}!`, preferredPartType: null, quantity };
     }
 
-    return { isBuild: true, interpretation: `建築指示として判定しました${quantity > 1 ? ` (${quantity}つ)` : ''}`, preferredPartType: null, quantity };
+    return {
+      isBuild: true,
+      interpretation: `Treated as a build command${quantity > 1 ? ` (${quantity})` : ''}.`,
+      preferredPartType: null,
+      quantity,
+    };
   }
 
-  return { isBuild: false, interpretation: '建築指示として判定できませんでした' };
+  return { isBuild: false, interpretation: 'Could not parse it as a build command.' };
 }
 
 function appendCommandResultToLog(child) {
@@ -591,6 +668,8 @@ function receiveHeroCommand(text) {
   targetNpc.commandTargetY = FLOOR_Y - targetNpc.h;
   targetNpc.commandState = NPC_COMMAND_STATES.RETURN_HOME;
   targetNpc.lineSlot = -1;
+  targetNpc.workStartSpeech = createWorkStartSpeech(spoken, parsed);
+  targetNpc.workStartSpeechUntil = performance.now() + Number(COMMAND_LINE.workStartSpeechDurationMs || 2800);
 
   // 解釈データを更新（英語で表記）
   if (targetNpc.lastInterpretation) {

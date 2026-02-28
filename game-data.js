@@ -536,6 +536,7 @@ const COMMAND_LINE = {
   workSpeed: 130,
   markDisplayMs: 1800,
   uninterpretedHintDelayMs: 5000,
+  workStartSpeechDurationMs: 2800,
   textDisplayMaxLen: 24,
 };
 
@@ -653,6 +654,9 @@ function createNpc(i) {
     lastHeardText: '',
     lastInterpretation: '',
     commandTargetX: null,
+    commandTargetY: null,
+    workStartSpeech: '',
+    workStartSpeechUntil: 0,
   };
 }
 
@@ -733,6 +737,8 @@ function resetNpcCommandState(npc) {
   npc.buildQuantity = 1;
   npc.isListeningToPlayer = false;
   npc.listeningStartedAt = 0;
+  npc.workStartSpeech = '';
+  npc.workStartSpeechUntil = 0;
 }
 
 window.selectRandomGoal = selectRandomGoal;
