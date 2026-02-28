@@ -618,7 +618,7 @@ function drawDotBody(x, y, sprite = {}, opacity = 1.0) {
 function drawPlayerSpeechBubble(anchorX, topY, isListening = false, opacity = 1.0, imageState = null) {
   const bubbleW = 105;
   const bubbleH = 96;
-  const radius = 4;
+  const radius = 16;
   const tailTipY = topY - 1;
   const tailWidth = 6;
   const bubbleX = anchorX - bubbleW / 2;
@@ -661,13 +661,28 @@ function drawPlayerSpeechBubble(anchorX, topY, isListening = false, opacity = 1.
     ctx.stroke();
   }
 
-  ctx.beginPath();
-  ctx.moveTo(tailX - tailWidth / 2, by2);
-  ctx.lineTo(tailX + tailWidth / 2, by2);
-  ctx.lineTo(tailX, tailY);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
+  // ctx.beginPath();
+  // ctx.moveTo(tailX - tailWidth / 2, by2);
+  // ctx.lineTo(tailX + tailWidth / 2, by2);
+  // ctx.lineTo(tailX, tailY);
+  // ctx.closePath();
+  // ctx.fill();
+  // ctx.stroke();
+
+  // 思考中の吹き出しらしく、小さい泡を頭方向に配置する
+  const tailBaseX = clamp(anchorX, bx + bubbleW * 0.30, bx + bubbleW * 0.70);
+  // 3つの円を配置する
+  const tailNodes = [
+    { x: tailBaseX, y: by2 + 6, r: 4 },
+    { x: tailBaseX + (anchorX - tailBaseX) * 0.55, y: by2 + 15, r: 3 },
+    { x: anchorX, y: Math.min(topY - 4, by2 + 24), r: 2 },
+  ];
+  for (const node of tailNodes) {
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
 
   if (!imageState || !imageState.image || imageState.failed) {
     const fallbackDotColor = isListening ? '#6f9ecf' : '#7a8fa4';
@@ -680,7 +695,8 @@ function drawPlayerSpeechBubble(anchorX, topY, isListening = false, opacity = 1.
       const bounce = isListening ? Math.max(0.5, 0.5 + Math.sin(basePhase + d * 1.6) * 0.5) : 1;
       const dotRadius = 1.5 * bounce;
       ctx.beginPath();
-      ctx.arc(tailX - 3 + dx, dotY, dotRadius, 0, Math.PI * 2);
+      // ctx.arc(tailX - 3 + dx, dotY, dotRadius, 0, Math.PI * 2);
+      ctx.arc(anchorX + dx, dotY, dotRadius, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1.0;
