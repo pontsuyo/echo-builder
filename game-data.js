@@ -211,6 +211,20 @@ function createNpc(i) {
 
 const npcs = Array.from({ length: 2 }, (_, i) => createNpc(i));
 
+// 各子供の解釈データ
+const childInterpretations = [
+  { childId: 0, interpretation: "" },
+  { childId: 1, interpretation: "" }
+];
+
+// 解釈データを更新する関数
+function updateChildInterpretation(childId, interpretation) {
+  const child = childInterpretations.find(c => c.childId === childId);
+  if (child) {
+    child.interpretation = interpretation;
+  }
+}
+
 let clear = false;
 let message = '2D Dot Meadow';
 let cameraX = 0;

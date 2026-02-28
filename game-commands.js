@@ -271,9 +271,21 @@ function getCommandLineX(slot) {
   );
 }
 
+function getEnglishLabel(japaneseLabel) {
+  const labelMap = {
+    '壁/塀': 'wall',
+    '屋根': 'roof',
+    '煙突': 'chimney',
+    '門': 'door',
+    '窓': 'window',
+    '建築全般': 'house'
+  };
+  return labelMap[japaneseLabel] || japaneseLabel;
+}
+
 function isBuildingCommand(text) {
   const raw = (text || '').trim();
-  if (!raw) return { isBuild: false, interpretation: '聞き取れませんでした' };
+  if (!raw) return { isBuild: false, interpretation: "I don't know what you said." };
 
   const normalized = raw
     .replace(/([a-z])([A-Z])/g, '$1 $2')
@@ -335,10 +347,11 @@ function isBuildingCommand(text) {
 
   for (const rule of BUILD_COMMAND_RULES) {
     if (rule.re.test(normalized)) {
-      const quantityText = quantity > 1 ? ` ${quantity}つ` : '';
+      const quantityText = quantity > 1 ? ` ${quantity} times` : '';
+      const englishLabel = getEnglishLabel(rule.label);
       return {
         isBuild: true,
-        interpretation: `建築指示: ${rule.label}${quantityText}`,
+        interpretation: `I added ${englishLabel}${quantityText}!`,
         preferredPartType: rule.partType || null,
         quantity,
       };
@@ -354,24 +367,24 @@ function isBuildingCommand(text) {
   const hasHouse = hasAnyWord(BUILD_KEYWORDS.house);
 
   if (hasBuildVerb) {
-    const quantityText = quantity > 1 ? ` ${quantity}つ` : '';
+    const quantityText = quantity > 1 ? ` ${quantity} times` : '';
     if (hasRoof) {
-      return { isBuild: true, interpretation: `建築指示: 屋根${quantityText}`, preferredPartType: 'roof', quantity };
+      return { isBuild: true, interpretation: `I added a roof${quantityText}!`, preferredPartType: 'roof', quantity };
     }
     if (hasWall) {
-      return { isBuild: true, interpretation: `建築指示: 壁/塀${quantityText}`, preferredPartType: 'wall', quantity };
+      return { isBuild: true, interpretation: `I added a wall${quantityText}!`, preferredPartType: 'wall', quantity };
     }
     if (hasChimney) {
-      return { isBuild: true, interpretation: `建築指示: 煙突${quantityText}`, preferredPartType: 'chimney', quantity };
+      return { isBuild: true, interpretation: `I added a chimney${quantityText}!`, preferredPartType: 'chimney', quantity };
     }
     if (hasDoor) {
-      return { isBuild: true, interpretation: `建築指示: 門${quantityText}`, preferredPartType: 'door', quantity };
+      return { isBuild: true, interpretation: `I added a door${quantityText}!`, preferredPartType: 'door', quantity };
     }
     if (hasWindow) {
-      return { isBuild: true, interpretation: `建築指示: 窓${quantityText}`, preferredPartType: 'window', quantity };
+      return { isBuild: true, interpretation: `I added a window${quantityText}!`, preferredPartType: 'window', quantity };
     }
     if (hasHouse) {
-      return { isBuild: true, interpretation: `建築全般${quantityText}`, preferredPartType: null, quantity };
+      return { isBuild: true, interpretation: `I built a house${quantityText}!`, preferredPartType: null, quantity };
     }
 
     return { isBuild: true, interpretation: `建築指示として判定しました${quantity > 1 ? ` (${quantity}つ)` : ''}`, preferredPartType: null, quantity };
@@ -482,6 +495,11 @@ function receiveHeroCommand(text) {
   targetNpc.commandMarkUntil = targetNpc.isBuildCommand ? targetNpc.commandMarkUntil : 0;
   targetNpc.commandState = NPC_COMMAND_STATES.RETURN_HOME;
   targetNpc.lineSlot = -1;
+
+  // 解釈データを更新（英語で表記）
+  if (targetNpc.lastInterpretation) {
+    updateChildInterpretation(targetNpc.id, targetNpc.lastInterpretation);
+  }
 
   appendCommandResultToLog(targetNpc);
   const wasFirstBuilder = commandSession.cursor === 0 && targetNpc.isBuildCommand;

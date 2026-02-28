@@ -222,6 +222,13 @@ function updateCamera(dt) {
       clear = true;
       const builtSummary = getBuiltHousePartSummaryText();
       addMessage(`家の建設が完了。設置数: ${builtSummary}。Rでリトライできます。`);
+      
+      // 各子供の解釈を表示
+      for (const child of childInterpretations) {
+        if (child.interpretation) {
+          addMessage(`子${child.childId}の解釈: ${child.interpretation}`);
+        }
+      }
       return;
     }
     cameraX += dx > 0 ? step : -step;
@@ -470,6 +477,58 @@ function draw() {
     });
 
     drawBuildMark(e, sx);
+
+    // 解釈データを表示（家が映った後にのみ表示）
+    if (houseRevealDone) {
+      const childInterpretation = childInterpretations.find(c => c.childId === e.id);
+      if (childInterpretation && childInterpretation.interpretation) {
+        // 吹き出しの背景
+        const text = childInterpretation.interpretation;
+        const textWidth = ctx.measureText(text).width;
+        const padding = 4;
+        const bgWidth = textWidth + padding * 2;
+        const bgHeight = 16;
+        
+        // 吹き出しの位置を調整（キャラクターの位置に応じて調整）
+        // 左右を確実に合わせ、上下を少しずらす
+        const balloonX = sx;
+        // 吹き出しのY位置を調整して重ならないようにする
+        const balloonY = e.y + e.h + 4 + (e.id * 20);
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.globalAlpha = 0.8;
+        ctx.fillRect(balloonX, balloonY, bgWidth, bgHeight);
+        ctx.globalAlpha = 1.0;
+        
+        // 吹き出しの枠線
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(balloonX, balloonY, bgWidth, bgHeight);
+        
+        // 吹き出しの尻尾（合同にするために統一した形状）
+        // 縦の長さを短い方に揃えて形状を統一
+        const tailHeight = balloonY - (e.y + e.h);
+        const tailWidth = 4;
+        const tailX = balloonX + 10;
+        const tailY = balloonY - 5;
+        
+        ctx.beginPath();
+        ctx.moveTo(tailX - tailWidth / 2, balloonY);
+        ctx.lineTo(tailX, tailY);
+        ctx.lineTo(tailX + tailWidth / 2, balloonY);
+        ctx.closePath();
+        ctx.fillStyle = '#ffffff';
+        ctx.globalAlpha = 0.8;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+        ctx.stroke();
+        
+        // 解釈データを表示
+        ctx.fillStyle = '#000000';
+        ctx.font = '12px "Courier New", monospace';
+        ctx.fillText(text, balloonX + padding, balloonY + 14);
+      }
+    }
   }
 
   // Hero (always on top)
