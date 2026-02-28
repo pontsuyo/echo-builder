@@ -661,14 +661,6 @@ function drawPlayerSpeechBubble(anchorX, topY, isListening = false, opacity = 1.
     ctx.stroke();
   }
 
-  // ctx.beginPath();
-  // ctx.moveTo(tailX - tailWidth / 2, by2);
-  // ctx.lineTo(tailX + tailWidth / 2, by2);
-  // ctx.lineTo(tailX, tailY);
-  // ctx.closePath();
-  // ctx.fill();
-  // ctx.stroke();
-
   // 思考中の吹き出しらしく、小さい泡を頭方向に配置する
   const tailBaseX = clamp(anchorX, bx + bubbleW * 0.30, bx + bubbleW * 0.70);
   // 3つの円を配置する
