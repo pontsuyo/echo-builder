@@ -443,6 +443,12 @@ function draw() {
   ctx.fillText(message, 8, 34);
   ctx.fillText(`X:${Math.floor(player.x)} / ${WORLD_W}`, 8, 50);
 
+  // NPC座標デバッグ情報
+  ctx.fillText('NPC Positions:', W - 200, 34);
+  npcs.forEach((npc, i) => {
+    ctx.fillText(`ID${npc.id}: X${Math.floor(npc.x)} Y${Math.floor(npc.y)} ${npc.commandState}`, W - 200, 50 + i * 20);
+  });
+
   ctx.fillText('音声デバッグ:', 8, 66);
   ctx.fillText(liveTranscriptLine, 8, 82);
 
