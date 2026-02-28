@@ -303,6 +303,22 @@ function ensureResultText(value, fallback = '未受信') {
   return text || fallback;
 }
 
+function ensureResultTokens(value) {
+  const seen = new Set();
+  return (Array.isArray(value) ? value : [])
+    .map((token) => String(token || '').trim())
+    .filter(Boolean)
+    .reduce((acc, token) => {
+      const key = token.toLowerCase();
+      if (seen.has(key)) {
+        return acc;
+      }
+      seen.add(key);
+      acc.push(token);
+      return acc;
+    }, []);
+}
+
 function getFrontOrderedNpcs() {
   const direction = player.facing >= 0 ? 1 : -1;
   const front = [];
@@ -355,6 +371,117 @@ function getSpeechPartLabel(partType) {
     window: 'windows',
   };
   return map[partType] || 'parts';
+}
+
+function getCommandQuantityFromText(text, words = []) {
+  const normalized = normalizeForCommandMatch(text);
+  const englishNumberWords = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+    first: 1,
+    second: 2,
+    third: 3,
+    fourth: 4,
+    fifth: 5,
+    sixth: 6,
+    seventh: 7,
+    eighth: 8,
+    ninth: 9,
+    tenth: 10,
+  };
+  const japaneseNumberByChar = {
+    一: 1,
+    二: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+    十: 10,
+  };
+  let quantity = 1;
+  let quantityToken = '';
+  const candidateWords = Array.isArray(words) && words.length ? words : [];
+
+  const allTokens = candidateWords.length ? candidateWords : (normalized.match(/[a-z0-9一二三四五六七八九十]+/g) || []);
+  for (let i = 0; i < allTokens.length; i += 1) {
+    const token = String(allTokens[i]).trim();
+    if (!token) continue;
+    const digits = token.match(/^\d+$/);
+    if (digits) {
+      quantity = parseInt(digits[0], 10);
+      quantityToken = digits[0];
+      break;
+    }
+
+    const exactMatch = Object.entries(englishNumberWords).find(([label]) => token === label || token.startsWith(label));
+    if (exactMatch) {
+      quantity = exactMatch[1];
+      quantityToken = exactMatch[0];
+      break;
+    }
+
+    const japaneseMatch = token.match(/[一二三四五六七八九十]/);
+    if (japaneseMatch) {
+      const next = japaneseNumberByChar[japaneseMatch[0]];
+      if (Number.isFinite(next)) {
+        quantity = next;
+        quantityToken = japaneseMatch[0];
+        break;
+      }
+    }
+  }
+
+  return { quantity, quantityToken };
+}
+
+function normalizeForCommandMatch(text) {
+  return String(text || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[。、!！?？,、]/g, ' ')
+    .replace(/[."'(){}\[\],!?]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function collectEvidenceTokens(text, candidates = []) {
+  const normalizedSource = normalizeForCommandMatch(text);
+  const seen = new Set();
+  const results = [];
+
+  for (const candidate of candidates) {
+    const rawToken = String(candidate || '').trim();
+    if (!rawToken) continue;
+
+    const normalizedToken = normalizeForCommandMatch(rawToken);
+    if (!normalizedToken) continue;
+
+    if (!normalizedSource.includes(normalizedToken)) {
+      continue;
+    }
+
+    const key = normalizedToken;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    results.push(rawToken);
+  }
+
+  return results;
 }
 
 function extractColorCue(text) {
@@ -431,69 +558,37 @@ function setListeningNpc(nextNpc) {
 
 function isBuildingCommand(text) {
   const raw = (text || '').trim();
-  if (!raw) return { isBuild: false, interpretation: "I don't know what you said." };
+  if (!raw) {
+    return {
+      isBuild: false,
+      interpretation: "I don't know what you said.",
+      interpretationEvidence: '',
+      interpretationEvidenceTokens: [],
+    };
+  }
 
-  const normalized = raw
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .toLowerCase()
-    .replace(/[。、!！?？,、]/g, ' ')
-    .replace(/[."'(){}\[\],!?]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const normalized = normalizeForCommandMatch(raw);
   const words = normalized.match(/[a-z0-9]+/g) || [];
   const wordSet = new Set(words);
   const hasWord = (w) => wordSet.has(w);
   const hasAnyWord = (arr) => arr.some((w) => hasWord(w));
   const requestedRoofShape = getRequestedRoofShape(normalized);
-
-  // 数字を認識（数字、日本語、英語の数詞をサポート）
-  const numberMatch = normalized.match(/\b(\d+)\b/);
-  let quantity = 1;
-  if (numberMatch) {
-    quantity = parseInt(numberMatch[1], 10);
-  } else {
-    const japaneseMatch = normalized.match(/([一二三四五六七八九十]+)/);
-    if (japaneseMatch) {
-      // 日本語の数字を変換
-      const japaneseNumbers = {
-        一: 1,
-        二: 2,
-        三: 3,
-        四: 4,
-        五: 5,
-        六: 6,
-        七: 7,
-        八: 8,
-        九: 9,
-        十: 10,
-      };
-      quantity = japaneseNumbers[japaneseMatch[1]] || 1;
-    } else {
-      const englishNumberWords = {
-        one: 1,
-        two: 2,
-        three: 3,
-        four: 4,
-        five: 5,
-        six: 6,
-        seven: 7,
-        eight: 8,
-        nine: 9,
-        ten: 10,
-      };
-      for (let i = 0; i < words.length; i += 1) {
-        const token = words[i];
-        const hit = Object.entries(englishNumberWords).find(([word]) => token === word || token.startsWith(word));
-        if (hit) {
-          quantity = hit[1];
-          break;
-        }
-      }
-    }
-  }
+  let interpretationEvidenceTokens = [];
+  let interpretationEvidence = '';
+  const {
+    quantity,
+    quantityToken,
+  } = getCommandQuantityFromText(raw, words);
+  const quantityEvidenceToken = quantityToken || String(quantity);
 
   for (const rule of BUILD_COMMAND_RULES) {
-    if (rule.re.test(normalized)) {
+    const match = normalized.match(rule.re);
+    if (match) {
+      interpretationEvidenceTokens = collectEvidenceTokens(
+        raw,
+        [match[0], rule.label, rule.partType, String(quantityEvidenceToken)]
+      );
+      interpretationEvidence = interpretationEvidenceTokens.join(' / ');
       const quantityText = quantity > 1 ? ` ${quantity} times` : '';
       const englishLabel = getEnglishLabel(rule.label);
       const roofShapeText = rule.partType === 'roof' && requestedRoofShape ? ` ${requestedRoofShape}` : '';
@@ -503,6 +598,8 @@ function isBuildingCommand(text) {
         preferredPartType: rule.partType || null,
         roofShape: rule.partType === 'roof' ? requestedRoofShape : null,
         quantity,
+        interpretationEvidence,
+        interpretationEvidenceTokens,
       };
     }
   }
@@ -519,6 +616,11 @@ function isBuildingCommand(text) {
   if (hasBuildVerb) {
     const quantityText = quantity > 1 ? ` ${quantity} times` : '';
     if (hasRoof) {
+      interpretationEvidenceTokens = collectEvidenceTokens(
+        raw,
+        ['屋根', 'roof', 'roofs', 'roofing', quantityEvidenceToken]
+      );
+      interpretationEvidence = interpretationEvidenceTokens.join(' / ');
       const roofShape = requestedRoofShape;
       const shapeText = roofShape ? ` ${roofShape}` : '';
       return {
@@ -527,36 +629,119 @@ function isBuildingCommand(text) {
         preferredPartType: 'roof',
         roofShape,
         quantity,
+        interpretationEvidence,
+        interpretationEvidenceTokens,
       };
     }
     if (hasWall) {
-      return { isBuild: true, interpretation: `I added a wall${quantityText}!`, preferredPartType: 'wall', quantity };
+      interpretationEvidenceTokens = collectEvidenceTokens(
+        raw,
+        ['壁', 'wall', 'walls', 'せき', '塀', 'かき', 'かけ', 'かぎ', 'floor', 'floors', 'foundation', 'base', quantityEvidenceToken]
+      );
+      interpretationEvidence = interpretationEvidenceTokens.join(' / ');
+      return {
+        isBuild: true,
+        interpretation: `I added a wall${quantityText}!`,
+        preferredPartType: 'wall',
+        quantity,
+        interpretationEvidence,
+        interpretationEvidenceTokens,
+      };
     }
     if (hasChimney) {
-      return { isBuild: true, interpretation: `I added a chimney${quantityText}!`, preferredPartType: 'chimney', quantity };
+      interpretationEvidenceTokens = collectEvidenceTokens(
+        raw,
+        ['煙突', 'chimney', 'smokestack', quantityEvidenceToken]
+      );
+      interpretationEvidence = interpretationEvidenceTokens.join(' / ');
+      return {
+        isBuild: true,
+        interpretation: `I added a chimney${quantityText}!`,
+        preferredPartType: 'chimney',
+        quantity,
+        interpretationEvidence,
+        interpretationEvidenceTokens,
+      };
     }
     if (hasDoor) {
-      return { isBuild: true, interpretation: `I added a door${quantityText}!`, preferredPartType: 'door', quantity };
+      interpretationEvidenceTokens = collectEvidenceTokens(
+        raw,
+        ['門', 'とびら', 'door', 'doors', 'entrance', '入口', quantityEvidenceToken]
+      );
+      interpretationEvidence = interpretationEvidenceTokens.join(' / ');
+      return {
+        isBuild: true,
+        interpretation: `I added a door${quantityText}!`,
+        preferredPartType: 'door',
+        quantity,
+        interpretationEvidence,
+        interpretationEvidenceTokens,
+      };
     }
     if (hasColumn) {
-      return { isBuild: true, interpretation: `I added a column${quantityText}!`, preferredPartType: 'column', quantity };
+      interpretationEvidenceTokens = collectEvidenceTokens(
+        raw,
+        ['柱', 'column', 'columns', 'pillar', 'pillars', '支柱', quantityEvidenceToken]
+      );
+      interpretationEvidence = interpretationEvidenceTokens.join(' / ');
+      return {
+        isBuild: true,
+        interpretation: `I added a column${quantityText}!`,
+        preferredPartType: 'column',
+        quantity,
+        interpretationEvidence,
+        interpretationEvidenceTokens,
+      };
     }
     if (hasWindow) {
-      return { isBuild: true, interpretation: `I added a window${quantityText}!`, preferredPartType: 'window', quantity };
+      interpretationEvidenceTokens = collectEvidenceTokens(
+        raw,
+        ['窓', 'window', 'windows', 'glass', 'ガラス', 'まど', quantityEvidenceToken]
+      );
+      interpretationEvidence = interpretationEvidenceTokens.join(' / ');
+      return {
+        isBuild: true,
+        interpretation: `I added a window${quantityText}!`,
+        preferredPartType: 'window',
+        quantity,
+        interpretationEvidence,
+        interpretationEvidenceTokens,
+      };
     }
     if (hasHouse) {
-      return { isBuild: true, interpretation: `I built a house${quantityText}!`, preferredPartType: null, quantity };
+      interpretationEvidenceTokens = collectEvidenceTokens(
+        raw,
+        ['家', '建築', '建てて', '建て', '設置', '置いて', '置く', '作って', '作成', 'house', 'home', quantityEvidenceToken]
+      );
+      interpretationEvidence = interpretationEvidenceTokens.join(' / ');
+      return {
+        isBuild: true,
+        interpretation: `I built a house${quantityText}!`,
+        preferredPartType: null,
+        quantity,
+        interpretationEvidence,
+        interpretationEvidenceTokens,
+      };
     }
 
+    interpretationEvidenceTokens = collectEvidenceTokens(raw, [...BUILD_KEYWORDS.build, quantityEvidenceToken]);
+    interpretationEvidence = interpretationEvidenceTokens.join(' / ');
     return {
       isBuild: true,
       interpretation: `Treated as a build command${quantity > 1 ? ` (${quantity})` : ''}.`,
       preferredPartType: null,
       quantity,
+      interpretationEvidence,
+      interpretationEvidenceTokens,
     };
   }
 
-  return { isBuild: false, interpretation: "I didn't get that!" };
+  return {
+    isBuild: false,
+    interpretation: "I didn't get that!",
+    interpretationEvidence: '',
+    interpretationEvidenceTokens: [],
+  };
 }
 
 function appendCommandResultToLog(child) {
@@ -564,6 +749,8 @@ function appendCommandResultToLog(child) {
     childId: child.id,
     heard: child.lastHeardText || '',
     interpreted: child.lastInterpretation || '',
+    interpretationEvidence: child.lastInterpretationEvidence || '',
+    interpretationEvidenceTokens: normalizeEvidenceTokens(child.lastInterpretationEvidenceTokens || []),
     quantity: child.buildQuantity || 1,
   };
   const idx = commandResultRows.findIndex((r) => r.childId === entry.childId);
@@ -610,6 +797,8 @@ function startCommandLineup(options = {}) {
     ordered[i].lineSlot = i;
     ordered[i].lastHeardText = '';
     ordered[i].lastInterpretation = '';
+    ordered[i].lastInterpretationEvidence = '';
+    ordered[i].lastInterpretationEvidenceTokens = [];
     ordered[i].buildQuantity = 1;
     ordered[i].preferredRoofShape = null;
   }
@@ -654,6 +843,10 @@ function receiveHeroCommand(text) {
   const parsed = isBuildingCommand(spoken);
   targetNpc.lastHeardText = spoken;
   targetNpc.lastInterpretation = parsed.interpretation;
+  targetNpc.lastInterpretationEvidence = parsed.interpretationEvidence || '';
+  targetNpc.lastInterpretationEvidenceTokens = Array.isArray(parsed.interpretationEvidenceTokens)
+    ? parsed.interpretationEvidenceTokens
+    : [];
   targetNpc.isBuildCommand = parsed.isBuild;
   targetNpc.preferredPartType = parsed.preferredPartType || null;
   targetNpc.preferredRoofShape = parsed.preferredPartType === 'roof' ? (parsed.roofShape || null) : null;
@@ -683,7 +876,11 @@ function receiveHeroCommand(text) {
 
   // 解釈データを更新（英語で表記）
   if (targetNpc.lastInterpretation) {
-    updateChildInterpretation(targetNpc.id, targetNpc.lastInterpretation);
+    updateChildInterpretation(targetNpc.id, targetNpc.lastInterpretation, {
+      heardText: targetNpc.lastHeardText,
+      interpretationEvidence: targetNpc.lastInterpretationEvidence,
+      interpretationEvidenceTokens: targetNpc.lastInterpretationEvidenceTokens,
+    });
   }
   
   appendCommandResultToLog(targetNpc);
@@ -758,6 +955,8 @@ function getCommandResultRows() {
       {
         heard: ensureResultText(row.heard),
         interpreted: ensureResultText(row.interpreted),
+        interpretationEvidence: ensureResultText(row.interpretationEvidence),
+        interpretationEvidenceTokens: ensureResultTokens(row.interpretationEvidenceTokens),
         quantity: row.quantity || 1,
       },
     ])
@@ -769,6 +968,8 @@ function getCommandResultRows() {
       childId: npc.id,
       heard: ensureResultText(rowsById.get(npc.id)?.heard),
       interpreted: ensureResultText(rowsById.get(npc.id)?.interpreted),
+      interpretationEvidence: ensureResultText(rowsById.get(npc.id)?.interpretationEvidence),
+      interpretationEvidenceTokens: ensureResultTokens(rowsById.get(npc.id)?.interpretationEvidenceTokens),
       quantity: rowsById.get(npc.id)?.quantity || 1,
     }));
 }
@@ -778,10 +979,12 @@ function drawCommandResultPanel() {
 
   const x = 8;
   const y = 72;
-  const rowHeight = 13;
+  const rowHeight = 16;
   const lines = getCommandResultRows();
 
-  const panelHeight = Math.min(260, 10 + lines.length * rowHeight + 8);
+  const contentLines = Math.max(1, lines.length * 3 + 1);
+  const panelHeight = Math.min(320, 10 + contentLines * rowHeight + 8);
+
   ctx.fillStyle = 'rgba(5, 12, 18, 0.86)';
   ctx.fillRect(x, y, Math.min(W - 16, 620), panelHeight);
   ctx.strokeStyle = '#e9f2ff';
@@ -791,14 +994,26 @@ function drawCommandResultPanel() {
   ctx.font = '10px "Courier New", monospace';
   ctx.fillText('コマンド結果', x + 6, y + 16);
 
-  for (let i = 0; i < lines.length; i += 1) {
-    const item = lines[i];
-    const quantityText = item.quantity > 1 ? ` / 個数: ${item.quantity}つ` : '';
-    const lineText = `子${item.childId}: 聞取="${truncateText(
-      item.heard,
-      COMMAND_LINE.textDisplayMaxLen
-    )}" / 解釈="${truncateText(item.interpreted, COMMAND_LINE.textDisplayMaxLen)}"${quantityText}`;
-    ctx.fillText(lineText, x + 6, y + 30 + i * rowHeight);
+  let rowY = y + 30;
+
+  for (const item of lines) {
+    const interpretationTokens = item.interpretationEvidenceTokens || [];
+    const evidence = interpretationTokens.length
+      ? interpretationTokens.join(', ')
+      : item.interpretationEvidence;
+    const interpreted = `${item.interpreted}${item.quantity > 1 ? ` / 個数:${item.quantity}つ` : ''}`;
+    const hasHeard = String(item.heard || '').trim() && String(item.heard).trim() !== '未受信';
+
+    ctx.fillText(`子${item.childId}`, x + 6, rowY);
+    rowY += rowHeight;
+    ctx.fillText(`  認識: ${truncateText(item.heard, COMMAND_LINE.textDisplayMaxLen)}`, x + 6, rowY);
+    rowY += rowHeight;
+    if (!hasHeard && evidence) {
+      ctx.fillText(`  根拠: ${truncateText(evidence, COMMAND_LINE.textDisplayMaxLen)}`, x + 6, rowY);
+      rowY += rowHeight;
+    }
+    ctx.fillText(`  解釈: ${truncateText(interpreted, COMMAND_LINE.textDisplayMaxLen)}`, x + 6, rowY);
+    rowY += rowHeight;
   }
 }
 
@@ -820,6 +1035,21 @@ function resetCommandSession() {
 function resetCommandResultLog() {
   commandResultRows = [];
   showCommandResults = false;
+  if (typeof childInterpretations !== 'undefined') {
+    for (const child of childInterpretations) {
+      child.heardText = '';
+      child.interpretation = '';
+      child.interpretationEvidence = '';
+      child.interpretationEvidenceTokens = [];
+    }
+  }
+  if (typeof npcs !== 'undefined') {
+    for (const npc of npcs) {
+      if (!npc) continue;
+      npc.lastInterpretationEvidenceTokens = [];
+      if (npc.lastInterpretationEvidence) npc.lastInterpretationEvidence = '';
+    }
+  }
   updateCommandButtons();
 }
 

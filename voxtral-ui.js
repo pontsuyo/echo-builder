@@ -3,6 +3,7 @@
   const testRedRoofButton = document.getElementById('test-red-roof');
   const testTwoWindowsButton = document.getElementById('test-two-windows');
   const testTwoDotsButton = document.getElementById('test-two-dots');
+  let isRetryMode = false;
 
   function startMic() {
     if (typeof window.unlockHeroSpeechBubble === 'function') {
@@ -33,14 +34,27 @@
 
   if (micButton) {
     micButton.disabled = false;
+    updateMicButtonLabel();
     micButton.addEventListener('click', () => {
       if (isMicActive()) {
         stopMic();
+      } else if (isRetryMode && window.resetGame) {
+        window.resetGame();
       } else {
         startMic();
       }
     });
   }
+
+  window.addEventListener('goal:score.finalized', () => {
+    isRetryMode = true;
+    updateMicButtonLabel();
+  });
+
+  window.addEventListener('game:reset', () => {
+    isRetryMode = false;
+    updateMicButtonLabel();
+  });
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'm' || e.key === 'M' || e.code === 'KeyM') {
@@ -50,6 +64,7 @@
       } else {
         startMic();
       }
+      updateMicButtonLabel();
     }
   });
 

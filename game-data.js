@@ -653,6 +653,8 @@ function createNpc(i) {
     listeningStartedAt: 0,
     lastHeardText: '',
     lastInterpretation: '',
+    lastInterpretationEvidence: '',
+    lastInterpretationEvidenceTokens: [],
     commandTargetX: null,
     commandTargetY: null,
     workStartSpeech: '',
@@ -663,13 +665,38 @@ function createNpc(i) {
 const npcs = Array.from({ length: 3 }, (_, i) => createNpc(i));
 
 // 各子供の解釈データ
-const childInterpretations = npcs.map((npc) => ({ childId: npc.id, interpretation: '' }));
+const childInterpretations = npcs.map((npc) => ({
+  childId: npc.id,
+  heardText: '',
+  interpretation: '',
+  interpretationEvidence: '',
+  interpretationEvidenceTokens: [],
+}));
+
+function normalizeEvidenceTokens(tokens = []) {
+  const seen = new Set();
+  return (Array.isArray(tokens) ? tokens : [tokens])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .reduce((acc, token) => {
+      const key = token.toLowerCase();
+      if (seen.has(key)) {
+        return acc;
+      }
+      seen.add(key);
+      acc.push(token);
+      return acc;
+    }, []);
+}
 
 // 解釈データを更新する関数
-function updateChildInterpretation(childId, interpretation) {
+function updateChildInterpretation(childId, interpretation, options = {}) {
   const child = childInterpretations.find(c => c.childId === childId);
   if (child) {
     child.interpretation = interpretation;
+    child.heardText = String(options.heardText || '');
+    child.interpretationEvidence = String(options.interpretationEvidence || '');
+    child.interpretationEvidenceTokens = normalizeEvidenceTokens(options.interpretationEvidenceTokens);
   }
 }
 
@@ -735,6 +762,8 @@ function resetNpcCommandState(npc) {
   npc.lastBuiltQuantity = 0;
   npc.assignedBuildPartId = null;
   npc.buildQuantity = 1;
+  npc.lastInterpretationEvidence = '';
+  npc.lastInterpretationEvidenceTokens = [];
   npc.isListeningToPlayer = false;
   npc.listeningStartedAt = 0;
   npc.workStartSpeech = '';

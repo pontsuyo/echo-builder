@@ -23,10 +23,22 @@ function resetGame() {
     ordered[i].x = getCommandLineX(i); // 整列位置に設定
     ordered[i].y = FLOOR_Y - ordered[i].h;
   }
+
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(
+      new CustomEvent('game:reset', {
+        detail: {
+          clear,
+        },
+      })
+    );
+  }
 }
 
 let houseRevealMicStopped = false;
 let scorePopupShownAt = 0;
+let pointerCanvasX = -1;
+let pointerCanvasY = -1;
 
 function stopHouseRevealMicIfNeeded() {
   if (houseRevealMicStopped) {
@@ -495,6 +507,573 @@ function getScorePanelTextLines() {
     `  Extra: ${extraPenalty} pts (${extraCount} pieces)`,
     `  Destroy: ${destroyPenalty} pts (${destroyedCount} pieces)`,
   ];
+}
+
+function truncateForClearText(value, maxLen = 24) {
+  const text = String(value || '').trim();
+  if (text.length <= maxLen) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(0, maxLen - 1))}…`;
+}
+
+function normalizeForHighlightMatch(text) {
+  return String(text || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[。、!！?？,、]/g, ' ')
+    .replace(/[.'"(){}\[\],!?]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function escapeForHighlightRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function findTokenRangeWithNormalization(rawText, rawToken, normalizedToken) {
+  const source = String(rawText || '');
+  const rawNeedle = String(rawToken || '').trim();
+  const normalizedNeedle = String(normalizedToken || '').trim();
+
+  if (!source || !normalizedNeedle) {
+    return null;
+  }
+
+  if (rawNeedle) {
+    try {
+      const isAscii = /[A-Za-z0-9]/.test(rawNeedle);
+      const re = new RegExp(escapeForHighlightRegExp(rawNeedle), isAscii ? 'gi' : 'g');
+      let match;
+      while ((match = re.exec(source)) !== null) {
+        if (match[0]) {
+          return {
+            start: match.index,
+            end: match.index + match[0].length,
+          };
+        }
+        if (match.index === re.lastIndex) {
+          re.lastIndex += 1;
+        }
+      }
+    } catch (error) {
+      // 例外が出るケース（不正な文字列）は無視して正規化探索に進む
+    }
+  }
+
+  const maxWindow = Math.max(12, normalizedNeedle.length + 6);
+  for (let start = 0; start < source.length; start += 1) {
+    for (let end = start + 1; end <= Math.min(source.length, start + maxWindow); end += 1) {
+      const candidate = normalizeForHighlightMatch(source.slice(start, end));
+      if (!candidate) {
+        continue;
+      }
+      if (candidate === normalizedNeedle) {
+        return { start, end };
+      }
+      if (candidate.length > normalizedNeedle.length + 2) {
+        break;
+      }
+    }
+  }
+
+  return null;
+}
+
+function collectHighlightRanges(rawText, tokens = []) {
+  const source = String(rawText || '');
+  if (!source) {
+    return [];
+  }
+
+  const candidates = new Map();
+  for (const token of tokens) {
+    const raw = String(token || '').trim();
+    const normalized = normalizeForHighlightMatch(raw);
+    if (!normalized) {
+      continue;
+    }
+    const key = normalized.toLowerCase();
+    if (!candidates.has(key)) {
+      candidates.set(key, raw);
+    }
+  }
+
+  const ranges = [];
+  const usedRange = new Set();
+  for (const [normalized, raw] of candidates) {
+    const range = findTokenRangeWithNormalization(source, raw, normalized);
+    if (!range) {
+      continue;
+    }
+
+    const key = `${range.start}:${range.end}`;
+    if (usedRange.has(key)) {
+      continue;
+    }
+    usedRange.add(key);
+    ranges.push(range);
+  }
+
+  return ranges.sort((a, b) => a.start - b.start);
+}
+
+function splitTextByWidth(text, maxWidth, font = null) {
+  const source = String(text || '');
+  const originalFont = ctx.font;
+  if (font) {
+    ctx.font = font;
+  }
+
+  if (!source || !maxWidth || maxWidth <= 0) {
+    const lines = [{ text: source, start: 0, end: source.length }];
+    if (font) {
+      ctx.font = originalFont;
+    }
+    return lines;
+  }
+
+  const lines = [];
+  let lineStart = 0;
+  let lineText = '';
+
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+    if (ch === '\n') {
+      lines.push({ text: lineText, start: lineStart, end: lineStart + lineText.length });
+      lineText = '';
+      lineStart = i + 1;
+      continue;
+    }
+
+    const candidate = lineText + ch;
+    if (lineText && ctx.measureText(candidate).width > maxWidth) {
+      lines.push({ text: lineText, start: lineStart, end: lineStart + lineText.length });
+      lineText = ch;
+      lineStart = i;
+    } else {
+      lineText = candidate;
+    }
+  }
+
+  lines.push({ text: lineText, start: lineStart, end: lineStart + lineText.length });
+
+  if (font) {
+    ctx.font = originalFont;
+  }
+
+  return lines;
+}
+
+function truncateTextByPixelWidth(text, maxWidth, font = null) {
+  const source = String(text || '');
+  if (!source) {
+    return '';
+  }
+
+  const originalFont = ctx.font;
+  if (font) {
+    ctx.font = font;
+  }
+
+  if (!maxWidth || maxWidth <= 0) {
+    const full = source;
+    if (font) {
+      ctx.font = originalFont;
+    }
+    return full;
+  }
+
+  if (ctx.measureText(source).width <= maxWidth) {
+    if (font) {
+      ctx.font = originalFont;
+    }
+    return source;
+  }
+
+  const suffix = '…';
+  let end = source.length;
+  while (end > 0 && ctx.measureText(`${source.slice(0, end)}${suffix}`).width > maxWidth) {
+    end -= 1;
+  }
+
+  const result = end > 0 ? `${source.slice(0, end)}${suffix}` : suffix;
+
+  if (font) {
+    ctx.font = originalFont;
+  }
+
+  return result;
+}
+
+function drawTextLineWithHighlights(ctx, text, x, y, ranges, baseColor, highlightColor) {
+  const source = String(text || '');
+  if (!source) {
+    return;
+  }
+
+  const safeRanges = Array.isArray(ranges)
+    ? ranges
+      .map((range) => ({
+        start: Math.max(0, Math.min(source.length, Math.floor(range.start || 0))),
+        end: Math.max(0, Math.min(source.length, Math.floor(range.end || 0))),
+      }))
+      .filter((range) => range.end > range.start)
+      .sort((a, b) => a.start - b.start)
+    : [];
+
+  let cursor = 0;
+  let cursorX = x;
+
+  for (const range of safeRanges) {
+    const start = range.start;
+    const end = range.end;
+
+    if (start > cursor) {
+      const normalText = source.slice(cursor, start);
+      ctx.fillStyle = baseColor;
+      ctx.fillText(normalText, cursorX, y);
+      cursorX += ctx.measureText(normalText).width;
+    }
+
+    const highlightText = source.slice(start, end);
+    ctx.fillStyle = highlightColor;
+    ctx.fillText(highlightText, cursorX, y);
+    cursorX += ctx.measureText(highlightText).width;
+    cursor = end;
+  }
+
+  if (cursor < source.length) {
+    const normalText = source.slice(cursor);
+    ctx.fillStyle = baseColor;
+    ctx.fillText(normalText, cursorX, y);
+  }
+}
+
+function drawTextWithHighlights(ctx, text, x, y, tokens, baseColor, highlightColor, options = {}) {
+  const font = options.font || ctx.font;
+  const lineHeight = Number.isFinite(options.lineHeight) ? options.lineHeight : 12;
+  const maxWidth = Number.isFinite(options.maxWidth) ? Math.max(0, options.maxWidth) : 0;
+  const maxLines = Number.isFinite(options.maxLines) && options.maxLines > 0
+    ? Math.floor(options.maxLines)
+    : 0;
+  const originalFont = ctx.font;
+
+  if (font) {
+    ctx.font = font;
+  }
+
+  const ranges = Array.isArray(options.ranges)
+    ? options.ranges
+      .map((range) => ({
+        start: Math.max(0, Math.min(String(text || '').length, Math.floor(range.start || 0))),
+        end: Math.max(0, Math.min(String(text || '').length, Math.floor(range.end || 0))),
+      }))
+      .filter((range) => range.end > range.start)
+      .sort((a, b) => a.start - b.start)
+    : collectHighlightRanges(text, tokens);
+  const allLines = splitTextByWidth(text, maxWidth, font);
+  const limitedLines = maxLines > 0 && allLines.length > maxLines
+    ? allLines.slice(0, maxLines)
+    : allLines;
+
+  const renderedLines = maxLines > 0 && allLines.length > maxLines
+    ? limitedLines.map((line, lineIndex) => {
+      if (lineIndex !== limitedLines.length - 1) {
+        return line;
+      }
+
+      const truncated = truncateTextByPixelWidth(line.text, maxWidth, font);
+      return {
+        ...line,
+        text: truncated,
+        end: line.start + truncated.length,
+      };
+    })
+    : limitedLines;
+
+  for (let i = 0; i < renderedLines.length; i += 1) {
+    const line = renderedLines[i];
+    const lineStart = line.start;
+    const lineEnd = line.start + line.text.length;
+    const clippedRanges = ranges
+      .map((range) => {
+        if (range.end <= lineStart || range.start >= lineEnd) {
+          return null;
+        }
+        return {
+          start: Math.max(0, Math.min(lineEnd, Math.max(lineStart, range.start)) - lineStart),
+          end: Math.max(0, Math.min(lineEnd, range.end) - lineStart),
+        };
+      })
+      .filter(Boolean);
+
+    drawTextLineWithHighlights(ctx, line.text, x, y + i * lineHeight, clippedRanges, baseColor, highlightColor);
+  }
+
+  if (font) {
+    ctx.font = originalFont;
+  }
+
+  return renderedLines.length;
+}
+
+function isPointInsideRect(px, py, rect) {
+  if (!rect) return false;
+  return px >= rect.x && py >= rect.y
+    && px <= rect.x + rect.w
+    && py <= rect.y + rect.h;
+}
+
+function updatePointerCanvasPosition(event) {
+  if (!canvas || !event) {
+    pointerCanvasX = -1;
+    pointerCanvasY = -1;
+    return;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  const px = event.clientX - rect.left;
+  const py = event.clientY - rect.top;
+  if (Number.isNaN(px) || Number.isNaN(py)) {
+    pointerCanvasX = -1;
+    pointerCanvasY = -1;
+    return;
+  }
+
+  const scaleX = rect.width ? W / rect.width : 1;
+  const scaleY = rect.height ? H / rect.height : 1;
+  const nextX = Math.floor(px * scaleX);
+  const nextY = Math.floor(py * scaleY);
+
+  if (nextX < 0 || nextY < 0 || nextX > W || nextY > H) {
+    pointerCanvasX = -1;
+    pointerCanvasY = -1;
+    return;
+  }
+
+  pointerCanvasX = nextX;
+  pointerCanvasY = nextY;
+}
+
+function getHeardTranscriptRowsForDock(commandRows = []) {
+  if (!Array.isArray(commandRows) || !commandRows.length) {
+    return {
+      text: '',
+      segments: [],
+    };
+  }
+
+  let text = '';
+  const segments = [];
+  for (const row of commandRows) {
+    const heard = String(row && row.heard ? row.heard : '').trim();
+    if (!heard || heard === '未受信') {
+      continue;
+    }
+
+    const childId = Number.isFinite(Number(row.childId)) ? Number(row.childId) : row.childId;
+    const start = text.length + (text ? 1 : 0);
+    const rawEvidenceTokens = Array.isArray(row.interpretationEvidenceTokens)
+      ? row.interpretationEvidenceTokens
+      : [];
+
+    if (text) {
+      text += ' ';
+    }
+    text += heard;
+
+    segments.push({
+      childId,
+      heard,
+      start,
+      end: start + heard.length,
+      interpretationEvidenceTokens: rawEvidenceTokens,
+    });
+  }
+
+  return {
+    text,
+    segments,
+  };
+}
+
+function drawRecognizedTranscriptDock(hoveredRow, commandRows) {
+  const transcript = getHeardTranscriptRowsForDock(commandRows);
+  const baseText = String(transcript && transcript.text ? transcript.text : '').trim();
+
+  if (!baseText) {
+    return;
+  }
+
+  const hovered = hoveredRow && hoveredRow.heard ? hoveredRow : null;
+  const hoveredChildId = hovered && Number.isFinite(Number(hovered.childId))
+    ? Number(hovered.childId)
+    : null;
+  const hoveredSegment = hoveredChildId === null
+    ? null
+    : (Array.isArray(transcript.segments)
+      ? transcript.segments.find((segment) => Number(segment.childId) === hoveredChildId)
+      : null);
+
+  const ranges = hoveredSegment && hoveredSegment.interpretationEvidenceTokens.length
+    ? collectHighlightRanges(
+      hoveredSegment.heard,
+      hoveredSegment.interpretationEvidenceTokens
+    ).map((range) => ({
+      start: range.start + hoveredSegment.start,
+      end: range.end + hoveredSegment.start,
+    }))
+    : [];
+
+  const panelPadding = 8;
+  const panelW = Math.min(340, W - 12);
+  const panelX = clamp(Math.round(W - panelW - 6), 6, W - panelW - 6);
+  const panelH = 94;
+  const panelY = H - panelH - 6;
+  const headerFont = 'bold 12px "Courier New", monospace';
+  const textFont = '12px "Courier New", monospace';
+  const lineHeight = 14;
+  const contentWidth = Math.max(1, panelW - panelPadding * 2);
+  const maxLines = 4;
+
+  ctx.save();
+  ctx.globalAlpha = 0.88;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(panelX, panelY, panelW, panelH, 8);
+  } else {
+    ctx.beginPath();
+    ctx.rect(panelX, panelY, panelW, panelH);
+  }
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#f1f6ff';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = headerFont;
+  ctx.fillText('Recognized Speech', panelX + panelPadding, panelY + 5);
+
+  ctx.font = textFont;
+  drawTextWithHighlights(
+    ctx,
+    baseText,
+    panelX + panelPadding,
+    panelY + 24,
+    [],
+    '#f1f6ff',
+    '#ff5555',
+    {
+      font: textFont,
+      lineHeight,
+      maxWidth: contentWidth,
+      maxLines,
+      ranges,
+    }
+  );
+  ctx.restore();
+}
+
+function getInterpretationSpeechBubbleRect(npc, sx, text, childId = 0) {
+  const clean = String(text || '').trim();
+  if (!clean) return null;
+
+  const originalFont = ctx.font;
+  try {
+    ctx.font = '12px "Courier New", monospace';
+    const textWidth = Math.ceil(ctx.measureText(clean).width);
+    const bubbleW = clamp(textWidth + 8, 16, W - 4);
+    const bubbleH = 16;
+    const bx = clamp(Math.round(sx), 2, W - bubbleW - 2);
+    const by = Math.round(npc.y + npc.h + 4 + childId * 20);
+    return {
+      x: bx,
+      y: by,
+      w: bubbleW,
+      h: bubbleH,
+    };
+  } finally {
+    ctx.font = originalFont;
+  }
+}
+
+function drawInterpretationSpeechBubble(npc, sx, text, opacity = 1, childId = 0) {
+  const clean = String(text || '').trim();
+  if (!clean) return null;
+
+  const rect = getInterpretationSpeechBubbleRect(npc, sx, clean, childId);
+  if (!rect) return null;
+  const tailBaseX = rect.x + 10;
+  const tailTipY = rect.y - 5;
+  const tailWidth = 4;
+
+  ctx.save();
+  ctx.globalAlpha = 0.8 * opacity;
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 1;
+
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+
+  ctx.beginPath();
+  ctx.moveTo(tailBaseX - tailWidth / 2, rect.y);
+  ctx.lineTo(tailBaseX, tailTipY);
+  ctx.lineTo(tailBaseX + tailWidth / 2, rect.y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#000000';
+  ctx.font = '12px "Courier New", monospace';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(clean, rect.x + 4, rect.y + 14);
+  ctx.restore();
+  return rect;
+}
+
+function getClearCommandResultLines() {
+  if (!clear || !scoreVisible || !Number.isFinite(Number(goalScore))) {
+    return [];
+  }
+
+  const rows = typeof getCommandResultRows === 'function' ? getCommandResultRows() : [];
+  const lines = [];
+
+  if (!Array.isArray(rows) || !rows.length) {
+    return lines;
+  }
+
+  lines.push('認識と根拠');
+  for (const item of rows) {
+    const heard = String(item.heard || '');
+    const evidenceTokens = Array.isArray(item.interpretationEvidenceTokens)
+      ? item.interpretationEvidenceTokens
+      : [];
+    const evidence = evidenceTokens.length ? evidenceTokens.join(', ') : String(item.interpretationEvidence || '');
+    const interpreted = String(item.interpreted || '');
+    const childId = Number.isFinite(Number(item.childId)) ? Number(item.childId) : item.childId;
+    if (!heard || heard === '未受信') {
+      continue;
+    }
+    lines.push(`子${childId} 認識="${truncateForClearText(heard, 28)}"`);
+    if (evidence) {
+      lines.push(`  根拠="${truncateForClearText(evidence, 28)}"`);
+    }
+    if (interpreted) {
+      lines.push(`  解釈="${truncateForClearText(interpreted, 28)}"`);
+    }
+  }
+
+  if (lines.length <= 1) {
+    return [];
+  }
+
+  return lines;
 }
 
 const GOAL_HINT_IMAGE_FALLBACK_PATH = '/images/goal-house-game-equivalent-1.svg';
@@ -1103,6 +1682,17 @@ function draw() {
   // NPCを先に描画し、主人公は最後に描画して必ず見えるようにする
   const nowMs = performance.now();
   const sortedNpcs = [...npcs].sort((a, b) => a.y + a.h - (b.y + b.h));
+  const commandRows = typeof getCommandResultRows === 'function'
+    ? getCommandResultRows()
+    : [];
+  const commandRowsById = new Map();
+  for (const row of commandRows) {
+    const id = Number(row && row.childId);
+    if (!Number.isFinite(id)) continue;
+    commandRowsById.set(id, row);
+  }
+  let hoveredInterpretationRow = null;
+
   for (const e of sortedNpcs) {
     const sx = e.x - cameraX;
     if (sx + 80 < 0 || sx - 80 > W) continue;
@@ -1137,53 +1727,21 @@ function draw() {
 
     // 解釈データを表示（家が映った後にのみ表示）
     if (houseRevealDone) {
-      const childInterpretation = childInterpretations.find(c => c.childId === e.id);
-      if (childInterpretation && childInterpretation.interpretation) {
-        // 吹き出しの背景
-        const text = childInterpretation.interpretation;
-        const textWidth = ctx.measureText(text).width;
-        const padding = 4;
-        const bgWidth = textWidth + padding * 2;
-        const bgHeight = 16;
-        
-        // 吹き出しの位置を調整（キャラクターの位置に応じて調整）
-        // 左右を確実に合わせ、上下を少しずらす
-        const balloonX = sx;
-        // 吹き出しのY位置を調整して重ならないようにする
-        const balloonY = e.y + e.h + 4 + (e.id * 20);
-        
-        ctx.fillStyle = '#ffffff';
-        ctx.globalAlpha = 0.8 * opacity;
-        ctx.fillRect(balloonX, balloonY, bgWidth, bgHeight);
-        ctx.globalAlpha = 1.0;
-        
-        // 吹き出しの枠線
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(balloonX, balloonY, bgWidth, bgHeight);
-        
-        // 吹き出しの尻尾（合同にするために統一した形状）
-        // 縦の長さを短い方に揃えて形状を統一
-        const tailHeight = balloonY - (e.y + e.h);
-        const tailWidth = 4;
-        const tailX = balloonX + 10;
-        const tailY = balloonY - 5;
-        
-        ctx.beginPath();
-        ctx.moveTo(tailX - tailWidth / 2, balloonY);
-        ctx.lineTo(tailX, tailY);
-        ctx.lineTo(tailX + tailWidth / 2, balloonY);
-        ctx.closePath();
-        ctx.fillStyle = '#ffffff';
-        ctx.globalAlpha = 0.8 * opacity;
-        ctx.fill();
-        ctx.globalAlpha = 1.0;
-        ctx.stroke();
-        
-        // 解釈データを表示
-        ctx.fillStyle = '#000000';
-        ctx.font = '12px "Courier New", monospace';
-        ctx.fillText(text, balloonX + padding, balloonY + 14);
+      const commandRow = commandRowsById.get(e.id) || null;
+      const interpreted = String(commandRow && commandRow.interpreted ? commandRow.interpreted : '').trim();
+      if (interpreted && interpreted !== '未受信') {
+        const interpretationRect = getInterpretationSpeechBubbleRect(e, sx, interpreted, e.id);
+        drawInterpretationSpeechBubble(e, sx, interpreted, opacity, e.id);
+
+        if (interpretationRect && isPointInsideRect(pointerCanvasX, pointerCanvasY, interpretationRect)) {
+          hoveredInterpretationRow = {
+            childId: e.id,
+            heard: commandRow && commandRow.heard ? commandRow.heard : '',
+            interpretationEvidenceTokens: Array.isArray(commandRow && commandRow.interpretationEvidenceTokens)
+              ? commandRow.interpretationEvidenceTokens
+              : [],
+          };
+        }
       }
     }
   }
@@ -1229,6 +1787,10 @@ function draw() {
 
   ctx.fillText('音声デバッグ:', 8, 66);
   ctx.fillText(liveTranscriptLine, 8, 82);
+
+  if (clear) {
+    drawRecognizedTranscriptDock(hoveredInterpretationRow, commandRows);
+  }
 
   drawScorePopupAboveHouse();
   drawCommandResultPanel();
@@ -1281,6 +1843,17 @@ if (typeof window.setupVoxtralIntegration === 'function') {
 if (resultToggleButton) {
   resultToggleButton.addEventListener('click', toggleCommandResultPanel);
 }
+
+if (canvas) {
+  canvas.addEventListener('mousemove', updatePointerCanvasPosition);
+  canvas.addEventListener('mouseenter', updatePointerCanvasPosition);
+  canvas.addEventListener('mouseleave', () => {
+    pointerCanvasX = -1;
+    pointerCanvasY = -1;
+  });
+}
+
+window.resetGame = resetGame;
 updateCommandButtons();
 
 window.render_game_to_text = () =>
