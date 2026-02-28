@@ -515,6 +515,7 @@ function receiveHeroCommand(text) {
 
   appendCommandResultToLog(targetNpc);
   const wasFirstBuilder = commandSession.cursor === 0 && targetNpc.isBuildCommand;
+  const currentCursor = commandSession.cursor;
   commandSession.cursor += 1;
   if (commandSession.cursor >= commandSession.queue.length) {
     allOrdersReceived = true;
@@ -531,6 +532,11 @@ function receiveHeroCommand(text) {
     if (wasFirstBuilder && !firstBuilderAudioPaused) {
       firstBuilderAudioPaused = true;
       pauseMicForBuildAndResumeNextChild(true);
+    }
+    
+    // 点滅対象を次に指示を聞く子供に更新
+    if (typeof startBlinking === 'function') {
+      startBlinking(next.id);
     }
   }
 }
