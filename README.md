@@ -8,18 +8,37 @@
 - `voxtral.js`
 
 ## 実行方法
-ローカルで開くだけで動きます。
 
-- `index.html` をブラウザで開く
-- もしくは簡易サーバーを使う
-  - `python3 -m http.server`
-  - `http://localhost:8000`
+### 開発環境セットアップ
+
+1. **Python簡易サーバーを起動**（ポート8000）
+   ```bash
+   python3 -m http.server 8000
+   ```
+
+2. **プロキシサーバーを起動**（ポート8001）
+   ```bash
+   source .venv/bin/activate  # 仮想環境をアクティベート
+   python3 mistral_proxy.py
+   ```
+
+3. **ブラウザで開く**
+   - `http://localhost:8000/` にアクセス
+   - テストボタンを使って音声認識をテスト
+
+### 本番環境
+
+- `index.html` をブラウザで直接開く（CORS制限あり）
+- プロキシサーバーをデプロイ
 
 ## 操作
 - 左右移動: `←` `→`（または `A` `D`）
 - ジャンプ: `Z`（または `Space`）
 - リトライ: `R`
 - AI支援: `M` でマイク開始/停止（話した内容でヒントを取得）
+- **テストボタン**: 事前録音された音声ファイルを使ってテスト
+  - 「テスト:赤い屋根」: "Build a red roof"を送信
+  - 「テスト:窓2つ」: "Put two windows"を送信
 
 ## Voxtral API の呼び出し方（重要）
 `voxtral.js` は `window` 変数を読み込むだけで動作します。
