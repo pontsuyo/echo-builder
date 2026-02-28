@@ -220,14 +220,14 @@ function appendCommandResultToLog(child) {
 
 function startCommandLineup() {
   if (commandSession.active) {
-    addMessage('命令受付中です。現在の順番で次の命令を受けます。');
+    addMessage('すでに作業中です。');
     return;
   }
 
   resetCommandResultLog();
   const ordered = getFrontOrderedNpcs();
   if (!ordered.length) {
-    addMessage('命令を受ける子が見つかりません。');
+    addMessage('子供が見つかりません。');
     return;
   }
 
@@ -251,11 +251,7 @@ function startCommandLineup() {
   }
 
   updateCommandButtons();
-  if (resultToggleButton) {
-    resultToggleButton.disabled = false;
-  }
-
-  addMessage('命令待機列を開始します。先頭から順に命令を受けます。');
+  addMessage('作業を開始します。');
 }
 
 function receiveHeroCommand(text) {
@@ -263,14 +259,14 @@ function receiveHeroCommand(text) {
   if (!spoken) return;
 
   if (!commandSession.active) {
-    addMessage('命令受付は開始されていません。開始ボタンを押してください。');
+    addMessage('作業が開始されていません。');
     return;
   }
 
   const targetNpc = commandSession.queue[commandSession.cursor];
   if (!targetNpc) {
     commandSession.active = false;
-    addMessage('すでに命令の割当は完了しています。');
+    addMessage('すでに作業の割当は完了しています。');
     return;
   }
 
@@ -301,10 +297,10 @@ function receiveHeroCommand(text) {
   if (commandSession.cursor >= commandSession.queue.length) {
     allOrdersReceived = true;
     commandSession.active = false;
-    addMessage(`命令受付完了: ${targetNpc.id} が最後の子です。`);
+    addMessage(`作業完了: ${targetNpc.id} が最後の子です。`);
   } else {
     const next = commandSession.queue[commandSession.cursor];
-    addMessage(`子${targetNpc.id} が命令を受理。次は子${next.id}`);
+    addMessage(`子${targetNpc.id} が作業を受理。次は子${next.id}`);
     if (wasFirstBuilder && !firstBuilderAudioPaused) {
       firstBuilderAudioPaused = true;
       pauseMicForBuildAndResumeNextChild(true);

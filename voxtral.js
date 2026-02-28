@@ -1307,6 +1307,9 @@
       if (typeof setLiveTranscript === 'function') {
         setLiveTranscript(transcriptionText);
       }
+      if (gameApi && typeof gameApi.startCommandLineup === 'function') {
+        gameApi.startCommandLineup();
+      }
       if (gameApi && typeof gameApi.onHeroSpeech === 'function') {
         gameApi.onHeroSpeech(transcriptionText);
       }

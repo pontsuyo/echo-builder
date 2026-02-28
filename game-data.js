@@ -1,6 +1,5 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const startCommandButton = document.getElementById('start-command-lineup');
 const resultToggleButton = document.getElementById('toggle-command-result');
 
 const W = canvas.width;

@@ -490,17 +490,11 @@ if (typeof window.setupVoxtralIntegration === 'function') {
     setLiveTranscript,
     setHeroListening,
     onHeroSpeech: receiveHeroCommand,
-  });
-}
-
-if (startCommandButton) {
-  startCommandButton.addEventListener('click', () => {
-    startCommandLineup();
+    startCommandLineup: startCommandLineup,
   });
 }
 
 if (resultToggleButton) {
-  resultToggleButton.disabled = true;
   resultToggleButton.addEventListener('click', toggleCommandResultPanel);
 }
 updateCommandButtons();
