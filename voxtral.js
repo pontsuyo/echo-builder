@@ -754,6 +754,7 @@
     const form = new FormData();
     form.append('file', file);
     form.append('model', model);
+    form.append('language', 'eng'); // 言語を英語で固定
     if (enableStream) {
       form.append('stream', 'true');
     }
