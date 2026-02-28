@@ -368,7 +368,7 @@ function drawGroundDecorations() {
   }
 }
 
-function drawDotBody(x, y, sprite = {}) {
+function drawDotBody(x, y, sprite = {}, opacity = 1.0) {
   const w = sprite.w || 12;
   const h = sprite.h || 12;
   const isHero = sprite.isHero === true;
@@ -382,6 +382,7 @@ function drawDotBody(x, y, sprite = {}) {
 
   if (isHero) {
     ctx.fillStyle = '#0fef2e';
+    ctx.globalAlpha = opacity;
     ctx.fillRect(x, drawY, w, drawH);
 
     if (isThinking) {
@@ -409,11 +410,13 @@ function drawDotBody(x, y, sprite = {}) {
   } else {
     // ドット風: 2x2で色を変える
     ctx.fillStyle = enemyColor;
+    ctx.globalAlpha = opacity;
     ctx.fillRect(x, y, w, h);
     ctx.fillStyle = '#ff9a9a';
     ctx.fillRect(x + 1, y + 1, 4, 4);
     ctx.fillRect(x + w - 5, y + 1, 4, 4);
   }
+  ctx.globalAlpha = 1.0;
 }
 
 // 点滅状態管理
@@ -470,7 +473,7 @@ function draw() {
       outfit: e.outfit,
       color: '#ff3d3d',
       isHero: false,
-    });
+    }, opacity);
 
     drawBuildMark(e, sx);
 
