@@ -2,12 +2,15 @@
   const micButton = document.getElementById('ask-voxtral-mic');
   const CHAT_MODEL_CANDIDATES = ['mistral-small-latest', 'mistral-small'];
   const VOXTRAL_AUDIO_MODEL = 'voxtral-mini-latest';
-  const AUDIO_SEND_WAV = true;
+  const AUDIO_SEND_NATIVE_FIRST = true;
+  const AUDIO_SEND_WAV_FALLBACK = true;
   const AUDIO_MODEL_CANDIDATES = [VOXTRAL_AUDIO_MODEL];
+  const USE_PCM_LIVE_CAPTURE = true;
+  const PCM_LIVE_AS_LIVE_SOURCE = true;
   const CHAT_ENDPOINT_PATH = '/v1/chat/completions';
   const AUDIO_ENDPOINT_PATH = '/v1/audio/transcriptions';
-  const MIC_TIMESLICE_MS = 2000;
-  const MIC_STOP_FLUSH_DELAY_MS = 80;
+  const MIC_TIMESLICE_MS = 1400;
+  const MIC_STOP_FLUSH_DELAY_MS = 120;
 
   function normalizeEndpoint(url, fallback) {
     const raw = String(url || fallback || '').trim();
@@ -30,6 +33,13 @@
     return normalizeEndpoint(fallback);
   }
 
+  function withDocStreamAnchor(url) {
+    const raw = String(url || '').trim();
+    if (!raw) return raw;
+    const noHash = raw.split('#')[0];
+    return `${noHash}#stream`;
+  }
+
   const CHAT_API = {
     endpoint:
       buildEndpoint({
@@ -42,13 +52,15 @@
     model: window.__MISTRAL_API_MODEL || CHAT_MODEL_CANDIDATES[0],
   };
   const AUDIO_API = {
-    endpoint:
-      buildEndpoint({
+      endpoint:
+      withDocStreamAnchor(
+        buildEndpoint({
         explicit: window.__MISTRAL_AUDIO_TRANSCRIPT_URL,
         proxy: window.__MISTRAL_PROXY_AUDIO_URL || window.__MISTRAL_PROXY_URL,
         fallback: `https://api.mistral.ai${AUDIO_ENDPOINT_PATH}`,
         path: AUDIO_ENDPOINT_PATH,
-      }),
+        })
+      ),
     apiKey: window.__MISTRAL_API_KEY || '',
     model: VOXTRAL_AUDIO_MODEL,
   };
@@ -65,6 +77,8 @@
   let transcriptionText = '';
   let chunkSeq = 0;
   let audioRequestSeq = 0;
+  let liveTranscriptionPendingText = '';
+  let liveTranscriptionPendingTimer = null;
   let recordedChunks = [];
   let lastMicMimeType = '';
   let lastAudioChunk = null;
@@ -76,13 +90,53 @@
   const HERO_SPEECH_MIN_LEN = 2;
   const HERO_SPEECH_IDLE_MS = 600;
   const HERO_SPEECH_COOLDOWN_MS = 700;
-  const LIVE_TRANSCRIBE_DELAY_MS = 2000;
-  const LIVE_TRANSCRIBE_MIN_BYTES = 14000;
+  const LIVE_TRANSCRIBE_DELAY_MS = 850;
+  const LIVE_TRANSCRIBE_MIN_BYTES = 16000;
+  const LIVE_TRANSCRIBE_TARGET_MS = 1200;
+  const LIVE_STREAM_MAX_WINDOW_MS = 4500;
+  const LIVE_STREAM_MIN_COMMIT_LEN = 8;
+  const LIVE_STREAM_COMMIT_GRACE_MS = 550;
   const FINAL_TRANSCRIBE_MIN_BYTES = 16000;
+  const DISPLAY_FINAL_TRANSCRIPT = false;
+  const LIVE_ONLY_PIPELINE = true;
+  const LIVE_DUPLICATE_GUARD_MS = 1400;
+  const LIVE_STREAM_OVERLAP_CHARS = 180;
+  const LIVE_PCM_NOISE_GATE_ENABLED = true;
+  const LIVE_PCM_NOISE_GATE_RMS = 0.0018;
+  const AUDIO_REQUEST_LANGUAGE = 'en';
+  const AUDIO_REQUEST_TEMPERATURE = 0.0;
+  const AUDIO_REQUEST_DIARIZE = false;
+  const AUDIO_REQUEST_TIMESTAMP_GRANULARITIES = ['word'];
+  const AUDIO_STREAM_MIN_TEXT_LEN = 4;
+  const AUDIO_STREAM_SHORT_TEXT_RETRY = true;
+  const AUDIO_REQUEST_CONTEXT_BIAS = [
+    'build',
+    'builds',
+    'house',
+    'houses',
+    'tower',
+    'wall',
+    'bridge',
+    'door',
+    'window',
+    'road',
+    'create',
+    'add',
+  ];
   let liveTranscribeTimer = null;
   let liveTranscribeInFlight = false;
+  let liveTranscribePending = false;
   let liveChunkQueue = [];
   let liveChunkBytes = 0;
+  let liveAudioContext = null;
+  let liveMediaStreamSource = null;
+  let liveAudioProcessor = null;
+  let liveAudioGain = null;
+  let livePcmChunkQueue = [];
+  let livePcmBytes = 0;
+  let livePcmSampleRate = 0;
+  let livePcmSilenceFrames = 0;
+  let liveTranscriptSessionStartAt = 0;
   const isMicActive = () => micActive;
 
   function notifyHeroListening(active) {
@@ -92,11 +146,11 @@
   }
 
   const micMimeTypes = [
-    'audio/webm;codecs=opus',
-    'audio/webm',
+    'audio/mp4',
     'audio/ogg;codecs=opus',
     'audio/ogg',
-    'audio/mp4',
+    'audio/webm;codecs=opus',
+    'audio/webm',
     'audio/m4a',
   ];
 
@@ -314,9 +368,220 @@
     }
   }
 
+  function floatToInt16Sample(value) {
+    const clamped = Math.max(-1, Math.min(1, value));
+    return clamped < 0 ? Math.round(clamped * 32768) : Math.round(clamped * 32767);
+  }
+
+  function pcmToWavBlob(int16Chunks, sampleRate, channelCount = 1) {
+    if (!int16Chunks.length) {
+      throw new Error('音声データがありません');
+    }
+    const merged = new Int16Array(int16Chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+    let offset = 0;
+    for (let i = 0; i < int16Chunks.length; i += 1) {
+      const chunk = int16Chunks[i];
+      if (!chunk || !chunk.length) continue;
+      merged.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    const samples = merged.length / channelCount;
+    const bytesPerSample = 2;
+    const byteRate = sampleRate * channelCount * bytesPerSample;
+    const blockAlign = channelCount * bytesPerSample;
+    const dataSize = samples * blockAlign;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+    const writeString = (pos, str) => {
+      for (let i = 0; i < str.length; i += 1) {
+        view.setUint8(pos + i, str.charCodeAt(i));
+      }
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, channelCount, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    let writeOffset = 44;
+    for (let i = 0; i < merged.length; i += 1) {
+      view.setInt16(writeOffset, merged[i], true);
+      writeOffset += 2;
+    }
+
+    return new Blob([buffer], { type: 'audio/wav' });
+  }
+
+  function stopPcmCapture() {
+    if (liveAudioProcessor) {
+      liveAudioProcessor.onmessage = null;
+      liveAudioProcessor.onaudioprocess = null;
+      try {
+        liveAudioProcessor.disconnect();
+      } catch {
+      }
+      liveAudioProcessor = null;
+    }
+    if (liveMediaStreamSource) {
+      try {
+        liveMediaStreamSource.disconnect();
+      } catch {
+      }
+      liveMediaStreamSource = null;
+    }
+    if (liveAudioGain) {
+      try {
+        liveAudioGain.disconnect();
+      } catch {
+      }
+      liveAudioGain = null;
+    }
+    if (liveAudioContext && liveAudioContext.state !== 'closed') {
+      liveAudioContext.close().catch(() => {});
+    }
+    liveAudioContext = null;
+    livePcmChunkQueue = [];
+    livePcmBytes = 0;
+    livePcmSampleRate = 0;
+    livePcmSilenceFrames = 0;
+  }
+
+  function getRmsAmplitude(floatSamples) {
+    if (!floatSamples || !floatSamples.length) return 0;
+    let sum = 0;
+    for (let i = 0; i < floatSamples.length; i += 1) {
+      const value = floatSamples[i] || 0;
+      sum += value * value;
+    }
+    return Math.sqrt(sum / floatSamples.length);
+  }
+
+  function getLiveMinBytes() {
+    const sampleRate = livePcmSampleRate || 44100;
+    return Math.max(
+      LIVE_TRANSCRIBE_MIN_BYTES,
+      Math.round(sampleRate * 2 * (LIVE_TRANSCRIBE_TARGET_MS / 1000))
+    );
+  }
+
+  function getLiveMaxWindowBytes() {
+    const sampleRate = livePcmSampleRate || 44100;
+    return Math.max(
+      LIVE_TRANSCRIBE_MIN_BYTES,
+      Math.round(sampleRate * 2 * (LIVE_STREAM_MAX_WINDOW_MS / 1000))
+    );
+  }
+
+  function pushLivePcmChunk(floatChunks, sampleRate) {
+    if (!floatChunks.length || !sampleRate) return;
+    const rms = getRmsAmplitude(floatChunks);
+    if (LIVE_PCM_NOISE_GATE_ENABLED && rms < LIVE_PCM_NOISE_GATE_RMS) {
+      livePcmSilenceFrames += 1;
+      if (livePcmSilenceFrames <= 2) {
+        logDebug('live pcm chunk skipped by silence gate', {
+          rms,
+        });
+      }
+      return;
+    }
+    livePcmSilenceFrames = 0;
+
+    const int16Chunk = new Int16Array(floatChunks.length);
+    for (let i = 0; i < floatChunks.length; i += 1) {
+      int16Chunk[i] = floatToInt16Sample(floatChunks[i]);
+    }
+    logDebug('live pcm chunk buffered', {
+      sampleCount: int16Chunk.length,
+      byteLength: int16Chunk.byteLength,
+      queueBytesBefore: livePcmBytes,
+      sampleRate,
+    });
+    livePcmChunkQueue.push(int16Chunk);
+    livePcmBytes += int16Chunk.byteLength;
+    livePcmSampleRate = sampleRate;
+
+    const liveMinBytes = getLiveMinBytes();
+    if (livePcmBytes >= liveMinBytes) {
+      logDebug('live pcm threshold reached', {
+        threshold: liveMinBytes,
+        currentBytes: livePcmBytes,
+      });
+      try {
+        const wavBlob = pcmToWavBlob(livePcmChunkQueue, livePcmSampleRate, 1);
+        logDebug('live pcm wav converted', {
+          wavSize: wavBlob.size,
+          wavType: wavBlob.type || 'audio/wav',
+          segments: livePcmChunkQueue.length,
+        });
+        livePcmChunkQueue = [];
+        livePcmBytes = 0;
+        enqueueAudioChunk(wavBlob, {
+          trackForLive: true,
+          trackForFinal: false,
+        });
+        logDebug('live pcm request requested', {
+          pendingLiveQueueBytes: liveChunkBytes,
+          pendingLiveQueueLength: liveChunkQueue.length,
+        });
+        requestLiveTranscription();
+      } catch (err) {
+        logDebug('audio pcm wav convert failed', {
+          reason: String(err && err.message ? err.message : err),
+          sampleRate,
+          chunkBytes: livePcmBytes,
+        });
+      }
+    }
+  }
+
+  function startPcmCapture(stream) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) {
+      throw new Error('AudioContextが利用できません');
+    }
+    if (!stream) {
+      throw new Error('音声入力ストリームがありません');
+    }
+
+    liveAudioContext = new AudioCtx();
+    liveMediaStreamSource = liveAudioContext.createMediaStreamSource(stream);
+    liveAudioProcessor = liveAudioContext.createScriptProcessor(2048, 1, 1);
+    liveAudioGain = liveAudioContext.createGain();
+    liveAudioGain.gain.value = 0;
+
+    livePcmSampleRate = liveAudioContext.sampleRate;
+    liveAudioProcessor.onaudioprocess = (event) => {
+      if (!isMicActive() || isMicFlowSuspended) return;
+      const input = event.inputBuffer.getChannelData(0);
+      if (!input || !input.length) return;
+      const mixedSamples = new Float32Array(input.length);
+      mixedSamples.set(input);
+      pushLivePcmChunk(mixedSamples, livePcmSampleRate);
+    };
+
+    liveMediaStreamSource.connect(liveAudioProcessor);
+    liveAudioProcessor.connect(liveAudioGain);
+    liveAudioGain.connect(liveAudioContext.destination);
+    logDebug('live pcm capture started', {
+      sampleRate: livePcmSampleRate,
+      processor: 'scriptprocessor',
+    });
+  }
+
   function guessAudioExtension(mimeType) {
     if (!mimeType) return 'webm';
     const t = String(mimeType).toLowerCase();
+    if (t.includes('mp3') || t.includes('mpeg')) return 'mp3';
     if (t.includes('ogg')) return 'ogg';
     if (t.includes('mp4') || t.includes('m4a') || t.includes('aac')) return 'm4a';
     if (t.includes('wav')) return 'wav';
@@ -352,6 +617,18 @@
     );
   }
 
+  function isUnsupportedAudioError(status, detail) {
+    if (status !== 400) return false;
+    const text = String(detail || '').toLowerCase();
+    return (
+      text.includes('unsupported') ||
+      text.includes('unsupported format') ||
+      text.includes('invalid file type') ||
+      text.includes('invalid media type') ||
+      text.includes('media type')
+    );
+  }
+
   async function readStreamingText(response, onChunk, extractor) {
     if (!response.body) {
       throw new Error('ストリーミングレスポンスボディがありません');
@@ -361,6 +638,9 @@
     const decoder = new TextDecoder();
     let buffer = '';
     let doneText = '';
+    let parsedFrames = 0;
+    let emittedFrames = 0;
+    logDebug('stream reader start');
 
     while (true) {
       const { value, done } = await reader.read();
@@ -385,9 +665,26 @@
           try {
             const data = JSON.parse(payload);
             const delta = extractor(data);
+            parsedFrames += 1;
+            if (parsedFrames <= 8) {
+              logDebug('stream frame parsed', {
+                frame: parsedFrames,
+                hasDelta: Boolean(delta),
+                deltaPreview: typeof delta === 'string' ? delta.slice(0, 120) : '',
+              });
+            }
             if (typeof delta === 'string' && delta) {
-              doneText += delta;
-              onChunk(doneText);
+              const mergedText = mergeStreamingChunkText(doneText, delta);
+              if (mergedText !== doneText) {
+                logDebug('stream chunk merged', {
+                  frame: parsedFrames,
+                  hasMerge: true,
+                  mergedPreview: mergedText.slice(0, 120),
+                });
+                doneText = mergedText;
+                onChunk(doneText);
+                emittedFrames += 1;
+              }
             }
           } catch {
             logDebug('sse parse failed', {
@@ -409,9 +706,26 @@
         try {
           const data = JSON.parse(payload);
           const delta = extractor(data);
+          parsedFrames += 1;
+          if (parsedFrames <= 8) {
+            logDebug('stream tail frame parsed', {
+              frame: parsedFrames,
+              hasDelta: Boolean(delta),
+              deltaPreview: typeof delta === 'string' ? delta.slice(0, 120) : '',
+            });
+          }
           if (typeof delta === 'string' && delta) {
-            doneText += delta;
-            onChunk(doneText);
+            const mergedText = mergeStreamingChunkText(doneText, delta);
+            if (mergedText !== doneText) {
+              logDebug('stream tail chunk merged', {
+                frame: parsedFrames,
+                hasMerge: true,
+                mergedPreview: mergedText.slice(0, 120),
+              });
+              doneText = mergedText;
+              onChunk(doneText);
+              emittedFrames += 1;
+            }
           }
         } catch {
           logDebug('sse tail parse failed', {
@@ -421,6 +735,12 @@
       }
     }
 
+    logDebug('stream reader end', {
+      parsedFrames,
+      emittedFrames,
+      finalTextLength: doneText.length,
+      finalTextPreview: doneText.slice(0, 120),
+    });
     return doneText;
   }
 
@@ -438,22 +758,169 @@
     return (
       data?.text ??
       data?.transcript ??
+      data?.transcription ??
       data?.segments?.[0]?.text ??
+      data?.segments?.[0]?.transcript ??
       data?.choices?.[0]?.text ??
+      data?.choices?.[0]?.delta?.text ??
+      data?.choices?.[0]?.delta?.content ??
       data?.delta?.text ??
+      data?.delta?.content ??
+      data?.output?.text ??
       data?.output ??
+      data?.message ??
       ''
     );
   }
 
   function mergeTranscriptText(nextText, current) {
-    const trimmedCurrent = (current || '').trim();
-    const trimmedNext = (nextText || '').trim();
-    if (!trimmedNext) return current;
-    if (!trimmedCurrent) return trimmedNext;
-    if (trimmedNext.startsWith(trimmedCurrent)) return trimmedNext;
-    if (trimmedCurrent.startsWith(trimmedNext)) return trimmedCurrent;
-    return `${trimmedCurrent} ${trimmedNext}`;
+    const currentText = String(current || '').trim();
+    const incomingText = String(nextText || '').trim();
+    if (!incomingText) return currentText;
+    if (!currentText) return incomingText;
+    if (incomingText.startsWith(currentText)) return incomingText;
+    if (currentText.startsWith(incomingText)) return currentText;
+    const overlap = overlapLength(currentText, incomingText);
+    if (overlap) {
+      return `${currentText}${incomingText.slice(overlap)}`;
+    }
+    return `${currentText} ${incomingText}`;
+  }
+
+  function normalizeTranscriptText(text) {
+    return String(text || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function overlapLength(leftText, rightText, maxLen = LIVE_STREAM_OVERLAP_CHARS) {
+    const left = String(leftText || '');
+    const right = String(rightText || '');
+    if (!left || !right) return 0;
+    const maxOverlap = Math.min(left.length, right.length, maxLen);
+    for (let n = maxOverlap; n >= 1; n -= 1) {
+      if (left.slice(-n) === right.slice(0, n)) {
+        return n;
+      }
+    }
+    return 0;
+  }
+
+  function extractTranscriptDelta(previousText, nextText) {
+    const prev = String(previousText || '').trim();
+    const next = String(nextText || '').trim();
+    if (!next) return '';
+    if (!prev) return next;
+    if (next.startsWith(prev)) return next.slice(prev.length).trim();
+    if (prev.startsWith(next)) return '';
+    const overlap = overlapLength(prev, next);
+    return overlap ? next.slice(overlap).trim() : next;
+  }
+
+  function normalizeLiveCommitCandidate(text) {
+    return normalizeTranscriptText(text)
+      .replace(/^(?:the|it|a|an|to|and)\s+/i, '')
+      .trim();
+  }
+
+  function isShortLiveCommitCandidate(text) {
+    const normalized = normalizeLiveCommitCandidate(text);
+    if (!normalized) return true;
+    if (/[.!?。！？]$/.test(normalized)) return false;
+    return normalized.length < LIVE_STREAM_MIN_COMMIT_LEN;
+  }
+
+  function clearLiveTranscriptPending(commitPending = false) {
+    if (liveTranscriptionPendingTimer) {
+      clearTimeout(liveTranscriptionPendingTimer);
+      liveTranscriptionPendingTimer = null;
+    }
+    if (!commitPending) {
+      liveTranscriptionPendingText = '';
+    }
+  }
+
+  function flushLiveTranscriptPending() {
+    if (!liveTranscriptionPendingText) return;
+    const pendingText = liveTranscriptionPendingText;
+    clearLiveTranscriptPending(true);
+    liveTranscriptionPendingText = '';
+    const mergedText = mergeTranscriptText(pendingText, transcriptionText);
+    if (!mergedText || mergedText === transcriptionText) return;
+    transcriptionText = mergedText;
+    logDebug('appendTranscriptionText pending flush', {
+      pendingLength: pendingText.length,
+      mergedLength: transcriptionText.length,
+      mergedPreview: transcriptionText.slice(0, 120),
+    });
+    postMessage(transcriptionText);
+    notifyLiveTranscript(transcriptionText);
+    scheduleHeroSpeechFromTranscript(transcriptionText);
+  }
+
+  function splitTranscriptTokens(text) {
+    const normalized = normalizeTranscriptText(text).toLowerCase();
+    if (!normalized) return [];
+    return normalized
+      .replace(/[^\w一-龥ぁ-ヾァ-ヿ0-9]+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+  }
+
+  function hasTokenPrefix(tokens, prefix) {
+    if (!prefix.length || tokens.length < prefix.length) return false;
+    for (let i = 0; i < prefix.length; i += 1) {
+      if (tokens[i] !== prefix[i]) return false;
+    }
+    return true;
+  }
+
+  function squashLeadingRepeat(prevText, incomingText) {
+    const prev = normalizeTranscriptText(prevText);
+    const incoming = normalizeTranscriptText(incomingText);
+    if (!prev || !incoming) return incoming;
+
+    const prevLower = prev.toLowerCase();
+    const incomingLower = incoming.toLowerCase();
+    if (!incomingLower.startsWith(prevLower)) {
+      return incoming;
+    }
+
+    const prevTokens = splitTranscriptTokens(prev);
+    const incomingTokens = splitTranscriptTokens(incoming);
+    if (!prevTokens.length || !incomingTokens.length) return incoming;
+    if (!hasTokenPrefix(incomingTokens, prevTokens)) return incoming;
+
+    let reduced = incomingTokens;
+    let changed = false;
+    while (reduced.length >= prevTokens.length * 2) {
+      const tail = reduced.slice(prevTokens.length);
+      if (!hasTokenPrefix(tail, prevTokens)) break;
+      reduced = tail;
+      changed = true;
+    }
+
+    if (!changed) return incoming;
+    return reduced.length ? reduced.join(' ') : prev;
+  }
+
+  function normalizeLiveChunkForMerge(prevText, rawChunkText) {
+    const normalized = normalizeTranscriptText(rawChunkText);
+    if (!normalized) return '';
+
+    if (!liveTranscriptSessionStartAt) {
+      return normalized;
+    }
+
+    const elapsed = performance.now() - liveTranscriptSessionStartAt;
+    if (elapsed <= LIVE_DUPLICATE_GUARD_MS) {
+      return squashLeadingRepeat(prevText, normalized);
+    }
+
+    return normalized;
+  }
+
+  function mergeStreamingChunkText(currentText, incomingText) {
+    return mergeTranscriptText(incomingText, currentText);
   }
 
   async function requestVoxtralHint(extraUserPrompt = '') {
@@ -594,7 +1061,59 @@
   }
 
   function appendTranscriptionText(chunkText, fromStream = false) {
-    transcriptionText = mergeTranscriptText(chunkText, transcriptionText);
+    const incomingText = fromStream
+      ? normalizeLiveChunkForMerge(transcriptionText, chunkText)
+      : normalizeHeroSpeechText(chunkText);
+
+    if (!incomingText) {
+      logDebug('appendTranscriptionText ignored', {
+        fromStream,
+        reason: 'empty after normalization',
+      });
+      return;
+    }
+
+    logDebug('appendTranscriptionText called', {
+      fromStream,
+      incomingLength: incomingText ? incomingText.length : 0,
+      currentLength: transcriptionText ? transcriptionText.length : 0,
+      incomingPreview: incomingText.slice(0, 120),
+    });
+
+    const mergedText = mergeTranscriptText(incomingText, transcriptionText);
+
+    if (liveTranscriptionPendingText) {
+      clearLiveTranscriptPending();
+      liveTranscriptionPendingText = '';
+    }
+    if (!mergedText || mergedText === transcriptionText) {
+      logDebug('appendTranscriptionText unchanged', {
+        fromStream,
+        mergedTextLength: mergedText ? mergedText.length : 0,
+      });
+      return;
+    }
+    if (fromStream && isShortLiveCommitCandidate(mergedText)) {
+      clearLiveTranscriptPending();
+      liveTranscriptionPendingText = mergedText;
+      liveTranscriptionPendingTimer = setTimeout(() => {
+        flushLiveTranscriptPending();
+      }, LIVE_STREAM_COMMIT_GRACE_MS);
+      logDebug('appendTranscriptionText deferred', {
+        fromStream,
+        pendingLength: liveTranscriptionPendingText.length,
+        pendingPreview: liveTranscriptionPendingText.slice(0, 120),
+      });
+      return;
+    }
+    if (fromStream && !extractTranscriptDelta(transcriptionText, mergedText)) {
+      return;
+    }
+    transcriptionText = mergedText;
+    logDebug('appendTranscriptionText merged', {
+      mergedLength: transcriptionText ? transcriptionText.length : 0,
+      mergedPreview: transcriptionText ? transcriptionText.slice(0, 120) : '',
+    });
     postMessage(transcriptionText);
     notifyLiveTranscript(transcriptionText);
     if (fromStream) {
@@ -610,30 +1129,102 @@
   }
 
   function requestLiveTranscription() {
-    if (!isMicActive() || isMicFlowSuspended || !lastAudioChunk) {
+    logDebug('requestLiveTranscription entered', {
+      active: isMicActive(),
+      suspended: isMicFlowSuspended,
+      queueLength: liveChunkQueue.length,
+      queueBytes: liveChunkBytes,
+      inFlight: liveTranscribeInFlight,
+      timerActive: Boolean(liveTranscribeTimer),
+      hasLastChunk: Boolean(lastAudioChunk),
+    });
+
+    if (!isMicActive() || isMicFlowSuspended || !liveChunkQueue.length) {
+      logDebug('requestLiveTranscription skipped', {
+        reason: !isMicActive()
+          ? 'not active'
+          : isMicFlowSuspended
+            ? 'flow suspended'
+            : 'empty live queue',
+      });
       return;
     }
 
-    clearLiveTranscribeTimer();
+    if (liveTranscribeTimer) {
+      logDebug('live transcription deferred (timer already pending)', {
+        queueLength: liveChunkQueue.length,
+        queueBytes: liveChunkBytes,
+      });
+      return;
+    }
+    if (liveTranscribeInFlight) {
+      liveTranscribePending = true;
+      logDebug('live transcription deferred (in flight)', {
+        queueLength: liveChunkQueue.length,
+        queueBytes: liveChunkBytes,
+      });
+      return;
+    }
+
     liveTranscribeTimer = setTimeout(async () => {
       liveTranscribeTimer = null;
-      if (!isMicActive() || liveTranscribeInFlight || !lastAudioChunk) return;
-      if (isMicFlowSuspended) return;
+      const liveMinBytes = getLiveMinBytes();
+      logDebug('live transcription timer fired', {
+        active: isMicActive(),
+        inFlight: liveTranscribeInFlight,
+        queueLength: liveChunkQueue.length,
+        queueBytes: liveChunkBytes,
+        suspended: isMicFlowSuspended,
+        hasLastChunk: Boolean(lastAudioChunk),
+      });
 
-      if (!liveChunkQueue.length || liveChunkBytes < LIVE_TRANSCRIBE_MIN_BYTES) {
+      if (!isMicActive() || liveTranscribeInFlight || !lastAudioChunk) {
+        if (liveTranscribeInFlight) {
+          liveTranscribePending = true;
+        }
+        logDebug('live transcription timer abort', {
+          reason: !isMicActive()
+            ? 'not active'
+            : liveTranscribeInFlight
+              ? 'request in flight'
+              : 'no last audio chunk',
+        });
+        return;
+      }
+      if (isMicFlowSuspended) {
+        logDebug('live transcription timer abort', {
+          reason: 'flow suspended after timer',
+        });
+        return;
+      }
+
+      if (!liveChunkQueue.length || liveChunkBytes < liveMinBytes) {
         logDebug('live transcription skipped (chunk too small)', {
           queueLength: liveChunkQueue.length,
           queueBytes: liveChunkBytes,
-          minBytes: LIVE_TRANSCRIBE_MIN_BYTES,
+          minBytes: liveMinBytes,
         });
+        if (liveChunkBytes >= LIVE_TRANSCRIBE_MIN_BYTES) {
+          liveTranscribePending = true;
+        }
         return;
       }
 
       const chunksToSend = liveChunkQueue.splice(0, liveChunkQueue.length);
       const chunkBytes = liveChunkBytes;
       liveChunkBytes = 0;
+      logDebug('live transcription dequeued', {
+        chunkCount: chunksToSend.length,
+        chunkBytes,
+        remainingQueueLength: liveChunkQueue.length,
+      });
+      const chunkType =
+        chunksToSend[0]?.type ||
+        lastMicMimeType ||
+        mediaRecorder?.mimeType ||
+        'audio/wav';
       const aggregatedBlob = new Blob(chunksToSend, {
-        type: lastMicMimeType || mediaRecorder?.mimeType || 'audio/webm',
+        type: chunkType,
       });
 
       if (!aggregatedBlob || !aggregatedBlob.size) {
@@ -646,9 +1237,14 @@
 
       liveTranscribeInFlight = true;
       try {
+        logDebug('live transcription request dispatch', {
+          chunkBytes: aggregatedBlob.size,
+          chunkType: aggregatedBlob.type || 'unknown',
+          chunkCount: chunksToSend.length,
+        });
         const text = await sendTranscriptionChunk(aggregatedBlob, {
           noStream: false,
-          minBytes: LIVE_TRANSCRIBE_MIN_BYTES,
+          minBytes: liveMinBytes,
         });
         if (text && text.trim()) {
           appendTranscriptionText(text, true);
@@ -656,11 +1252,24 @@
       } catch (err) {
         logDebug('live transcription failed', {
           error: String(err && err.message ? err.message : err),
+          chunkCount: chunksToSend.length,
+          chunkBytes,
         });
         liveChunkQueue = chunksToSend.concat(liveChunkQueue);
         liveChunkBytes += chunkBytes;
+        logDebug('live transcription queue restored', {
+          queueLength: liveChunkQueue.length,
+          queueBytes: liveChunkBytes,
+        });
       } finally {
         liveTranscribeInFlight = false;
+        logDebug('live transcription inFlight reset', {
+          inFlight: liveTranscribeInFlight,
+        });
+        if (liveTranscribePending && !liveTranscribeTimer) {
+          liveTranscribePending = false;
+          requestLiveTranscription();
+        }
       }
     }, LIVE_TRANSCRIBE_DELAY_MS);
   }
@@ -729,6 +1338,10 @@
   function notifyLiveTranscript(text) {
     const speechText = normalizeHeroSpeechText(text);
     if (!speechText) return;
+    logDebug('notifyLiveTranscript', {
+      speechText: speechText.slice(0, 120),
+      hasSetter: Boolean(gameApi && typeof gameApi.setLiveTranscript === 'function'),
+    });
     if (gameApi && typeof gameApi.setLiveTranscript === 'function') {
       gameApi.setLiveTranscript(speechText);
     }
@@ -754,15 +1367,107 @@
     const form = new FormData();
     form.append('file', file);
     form.append('model', model);
-    form.append('language', 'en'); // 言語を英語で固定
+    form.append('language', AUDIO_REQUEST_LANGUAGE);
+    form.append('temperature', String(AUDIO_REQUEST_TEMPERATURE));
+    if (AUDIO_REQUEST_DIARIZE !== false) {
+      form.append('diarize', AUDIO_REQUEST_DIARIZE ? 'true' : 'false');
+    }
+    if (Array.isArray(AUDIO_REQUEST_TIMESTAMP_GRANULARITIES) && AUDIO_REQUEST_TIMESTAMP_GRANULARITIES.length) {
+      for (const granularity of AUDIO_REQUEST_TIMESTAMP_GRANULARITIES) {
+        const value = String(granularity || '').trim();
+        if (value) {
+          form.append('timestamp_granularities', value);
+        }
+      }
+    }
+    if (Array.isArray(AUDIO_REQUEST_CONTEXT_BIAS) && AUDIO_REQUEST_CONTEXT_BIAS.length) {
+      for (const phrase of AUDIO_REQUEST_CONTEXT_BIAS) {
+        const value = String(phrase || '').trim();
+        if (value) {
+          form.append('context_bias', value);
+        }
+      }
+    }
     if (enableStream) {
       form.append('stream', 'true');
     }
     return { form, fileName, file };
   }
 
+  async function parseAudioTextFromResponse(res, requestId, requestExtractor, onStreamChunk) {
+    const responseId = requestId || 'unknown';
+    const contentType = res.headers.get('content-type') || '';
+    logDebug('audio response headers', {
+      requestId: responseId,
+      contentType,
+      status: res.status,
+      statusText: res.statusText,
+      contentLength: res.headers.get('content-length') || 'unknown',
+    });
+
+    let resultText = '';
+    if (contentType.includes('text/event-stream')) {
+      let streamText = '';
+      resultText = await readStreamingText(
+        res,
+        (draft) => {
+          streamText = draft;
+          if (typeof onStreamChunk === 'function') {
+            onStreamChunk(draft);
+          }
+        },
+        requestExtractor
+      );
+      if (streamText && streamText.trim()) {
+        logDebug('audio stream incomplete', { requestId: responseId, text: streamText });
+      }
+      return resultText;
+    }
+
+    const data = await res.json().catch(async () => {
+      const fallbackText = await res.text().catch(() => '');
+      logDebug('audio non-json response body', {
+        requestId: responseId,
+        fallbackText: summarizeBodyForLog(fallbackText, 500),
+      });
+      return { text: fallbackText };
+    });
+    let text = '';
+    if (typeof data === 'string') {
+      text = data;
+    } else if (data && typeof data === 'object') {
+      text = requestExtractor(data) || '';
+      if (!text && Array.isArray(data.segments)) {
+        text = data.segments
+          .map((segment) => {
+            const segmentText =
+              segment?.text ??
+              segment?.transcript ??
+              segment?.output ??
+              '';
+            return String(segmentText || '').trim();
+          })
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+      }
+      if (!text && data?.results && Array.isArray(data.results)) {
+        text = data.results
+          .map((result) => requestExtractor(result) || '')
+          .join(' ')
+          .trim();
+      }
+    }
+    if (typeof text === 'string' && text) {
+      return text;
+    }
+    logDebug('audio non-stream response', { requestId: responseId, data });
+    return '';
+  }
+
   async function sendTranscriptionChunk(blob, options = {}) {
-    if (isMicFlowSuspended) {
+    const { allowFlowSuspended = false, allowNonStreamFallback = AUDIO_STREAM_SHORT_TEXT_RETRY } = options || {};
+    if (isMicFlowSuspended && !allowFlowSuspended) {
       logDebug('audio transcription skipped (flow suspended)');
       return '';
     }
@@ -788,11 +1493,25 @@
     const baseRequestId = `a-${Date.now()}-${++audioRequestSeq}`;
     const useProxy = Boolean(window.__MISTRAL_PROXY_AUDIO_URL || window.__MISTRAL_PROXY_URL);
     const models = getAudioModelCandidates();
-    const attempts = models.map((model) => ({
-      stream: false,
-      model,
-      kind: 'wav',
-    }));
+    const enableStream = !options.noStream;
+    const attempts = [];
+    for (const model of models) {
+      if (AUDIO_SEND_NATIVE_FIRST) {
+        attempts.push({
+          stream: enableStream,
+          model,
+          kind: 'native',
+        });
+      }
+
+      if (AUDIO_SEND_WAV_FALLBACK) {
+        attempts.push({
+          stream: enableStream,
+          model,
+          kind: 'wav',
+        });
+      }
+    }
 
     logDebug('audio transcription plan', {
       baseRequestId,
@@ -811,26 +1530,39 @@
     for (let i = 0; i < attempts.length; i += 1) {
       const { stream, model, kind } = attempts[i];
       const requestId = `${baseRequestId}-${i + 1}`;
-      if (!AUDIO_SEND_WAV || kind !== 'wav') {
-        logDebug('audio sending skipped (unexpected kind)', { requestId, kind });
-        continue;
-      }
-
-      let wavBlob = null;
+      let requestBlob = null;
       try {
-        wavBlob = await toWavBlob(blob);
-        if (wavBlob && wavBlob.size) {
-          const wavHead = await getBlobLeadingHex(wavBlob, 24);
-          logDebug('audio wav header inspect', {
-            requestId,
-            wavHead,
-          });
+        if (kind === 'native') {
+          requestBlob = blob;
+        } else {
+          requestBlob = await toWavBlob(blob);
+          if (requestBlob && requestBlob.size) {
+            const wavHead = await getBlobLeadingHex(requestBlob, 24);
+            logDebug('audio wav header inspect', {
+              requestId,
+              wavHead,
+            });
+          }
+        }
+        if (!requestBlob || !requestBlob.size) {
+          throw new Error(`変換後の音声データが空です: kind=${kind}`);
         }
       } catch (err) {
         logDebug('audio wav convert failed', {
           requestId,
+          kind,
           reason: String(err && err.message ? err.message : err),
         });
+        if (kind === 'native') {
+          logDebug('audio native conversion skipped (unsupported native kind)', {
+            requestId,
+            kind,
+            reason: String(err && err.message ? err.message : err),
+          });
+          if (i + 1 < attempts.length && attempts[i + 1].kind === 'wav') {
+            continue;
+          }
+        }
         throw err;
       }
 
@@ -844,7 +1576,7 @@
       }
 
       const { form, fileName, file } = buildAudioForm(
-          kind === 'wav' ? wavBlob : blob,
+          requestBlob,
           stream,
         chunkBase,
         i + 1,
@@ -881,45 +1613,48 @@
         throw networkErr;
       }
 
-    if (!res.ok) {
-      const errorBodyText = await res.text().catch(() => '');
-      const errorBody = safeParseErrorBody(errorBodyText);
-      const parsedCode = extractErrorCodeFromBody(errorBody);
-      const parsedDetail = extractErrorDetailFromBody(errorBody);
-      const detail =
-        parsedDetail ||
-        (typeof errorBodyText === 'string' && errorBodyText.length
-          ? errorBodyText
-          : 'No error detail');
-      console.error('[Voxtral] audio request failed', {
-        requestId,
-        status: res.status,
-        statusText: res.statusText,
-        url: res.url,
-        headers: toHeaderObj(res.headers),
-        body: errorBodyText,
-      });
-      logDebug('audio request failed detail', {
-        requestId,
-        fileName,
-        fileType: file.type,
-        fileSize: file.size,
-        detail,
-        code: parsedCode || 'none',
-        bodyPreview: summarizeBodyForLog(errorBodyText, 500),
-        endpoint: AUDIO_API.endpoint,
-      });
-      if (isDecodeError(res.status, detail)) {
-        logDebug('audio decode failure detected', {
+      if (!res.ok) {
+        const errorBodyText = await res.text().catch(() => '');
+        const errorBody = safeParseErrorBody(errorBodyText);
+        const parsedCode = extractErrorCodeFromBody(errorBody);
+        const parsedDetail = extractErrorDetailFromBody(errorBody);
+        const detail =
+          parsedDetail ||
+          (typeof errorBodyText === 'string' && errorBodyText.length
+            ? errorBodyText
+            : 'No error detail');
+        console.error('[Voxtral] audio request failed', {
           requestId,
-          reason: detail,
+          status: res.status,
+          statusText: res.statusText,
+          url: res.url,
+          headers: toHeaderObj(res.headers),
+          body: errorBodyText,
         });
-        if (i + 1 < attempts.length) {
-          continue;
+        logDebug('audio request failed detail', {
+          requestId,
+          fileName,
+          fileType: file.type,
+          fileSize: file.size,
+          detail,
+          kind,
+          code: parsedCode || 'none',
+          bodyPreview: summarizeBodyForLog(errorBodyText, 500),
+          endpoint: AUDIO_API.endpoint,
+        });
+        if (isDecodeError(res.status, detail) || isUnsupportedAudioError(res.status, detail)) {
+          if (kind === 'native') {
+            logDebug('audio decode failure detected', {
+              requestId,
+              kind,
+              reason: detail,
+            });
+            if (i + 1 < attempts.length) {
+              continue;
+            }
+          }
         }
-      }
-      if (isInvalidModelError(res.status, detail)) {
-        if (i + 1 < attempts.length) {
+        if (isInvalidModelError(res.status, detail) && i + 1 < attempts.length) {
           logDebug('audio model fallback retry', {
             requestId,
             fromModel: model,
@@ -928,54 +1663,93 @@
           });
           continue;
         }
+        throw new Error(`音声API ${res.status}: ${detail}`);
       }
-      throw new Error(`音声API ${res.status}: ${detail}`);
-    }
 
-    const contentType = res.headers.get('content-type') || '';
-      logDebug('audio response headers', {
-        requestId,
-        contentType,
-        status: res.status,
-        statusText: res.statusText,
-        contentLength: res.headers.get('content-length') || 'unknown',
-      });
       let resultText = '';
-      if (contentType.includes('text/event-stream')) {
-        resultText = await readStreamingText(res, (draft) => {
-          appendTranscriptionText(draft, true);
-        }, extractTranscriptionText);
-        if (resultText && resultText.trim()) {
+      let streamShort = false;
+      let streamHadText = false;
+      resultText = await parseAudioTextFromResponse(
+        res,
+        requestId,
+        extractTranscriptionText,
+        (draft) => {
+          if (draft && draft.trim()) {
+            streamHadText = true;
+            if (draft.trim().length < AUDIO_STREAM_MIN_TEXT_LEN) {
+              streamShort = true;
+            }
+          }
+        }
+      );
+
+      if (resultText && resultText.trim()) {
+        if (!stream || !streamShort || !allowNonStreamFallback || resultText.trim().length >= AUDIO_STREAM_MIN_TEXT_LEN) {
           logDebug('audio stream done', { requestId, text: resultText });
           return resultText;
         }
       }
 
-      const data = await res.json().catch(async () => {
-        const fallbackText = await res.text().catch(() => '');
-        logDebug('audio non-json response body', {
+      if (stream && allowNonStreamFallback && (streamShort || !streamHadText)) {
+        logDebug('audio stream text short, retrying non-stream', {
           requestId,
-          fallbackText: summarizeBodyForLog(fallbackText, 500),
+          resultLength: resultText ? resultText.trim().length : 0,
+          minLength: AUDIO_STREAM_MIN_TEXT_LEN,
         });
-        return { text: fallbackText };
-      });
-      const text =
-        data?.text ??
-        data?.transcript ??
-        data?.output ??
-        data?.message ??
-        '';
-      if (typeof text === 'string' && text) {
-        appendTranscriptionText(text);
+
+        const fallbackRequestId = `${requestId}-final`;
+        const fallbackHeaders = { ...headers };
+        const { form: fallbackForm } = buildAudioForm(
+          requestBlob,
+          false,
+          chunkBase,
+          `${i + 1}f`
+        );
+        const fallbackResponse = await fetch(AUDIO_API.endpoint, {
+          method: 'POST',
+          headers: fallbackHeaders,
+          body: fallbackForm,
+        });
+
+        if (!fallbackResponse.ok) {
+          const fallbackBodyText = await fallbackResponse.text().catch(() => '');
+          logDebug('audio non-stream fallback failed', {
+            requestId: fallbackRequestId,
+            status: fallbackResponse.status,
+            fallbackBody: summarizeBodyForLog(fallbackBodyText, 500),
+          });
+        } else {
+          const fallbackText = await parseAudioTextFromResponse(
+            fallbackResponse,
+            fallbackRequestId,
+            extractTranscriptionText
+          );
+          if (fallbackText && fallbackText.trim()) {
+            logDebug('audio non-stream fallback success', {
+              requestId: fallbackRequestId,
+              text: fallbackText,
+            });
+            return fallbackText;
+          }
+          logDebug('audio non-stream fallback empty', {
+            requestId: fallbackRequestId,
+          });
+        }
       }
-      logDebug('audio non-stream response', { requestId, data });
-      return text;
+      logDebug('audio final text unavailable', {
+        requestId,
+        resultLength: resultText ? String(resultText).trim().length : 0,
+        stream,
+      });
+      return '';
     }
 
     return '';
   }
 
-  function enqueueAudioChunk(blob) {
+  function enqueueAudioChunk(blob, options = {}) {
+    const { trackForLive = true, trackForFinal = true } = options || {};
+
     if (!blob || !blob.size || !isMicActive()) {
       logDebug('enqueueAudioChunk skipped', {
         hasData: Boolean(blob),
@@ -984,15 +1758,48 @@
       });
       return;
     }
-    liveChunkQueue.push(blob);
-    liveChunkBytes += blob.size;
-    logDebug('media recorder chunk buffered', {
-      size: blob.size,
-      type: blob.type || 'unknown',
-      state: 'active',
-    });
+    if (trackForLive) {
+      liveChunkQueue.push(blob);
+      liveChunkBytes += blob.size;
+      const maxWindowBytes = getLiveMaxWindowBytes();
+      if (liveChunkBytes > maxWindowBytes && liveChunkQueue.length > 1) {
+        while (liveChunkBytes > maxWindowBytes && liveChunkQueue.length > 1) {
+          const removed = liveChunkQueue.shift();
+          if (removed && removed.size) {
+            liveChunkBytes -= removed.size;
+          }
+        }
+        logDebug('live chunk queue trimmed', {
+          limitBytes: maxWindowBytes,
+          queueLength: liveChunkQueue.length,
+          queueBytes: liveChunkBytes,
+        });
+      }
+      logDebug('media recorder chunk buffered (live)', {
+        size: blob.size,
+        type: blob.type || 'unknown',
+        state: 'active',
+        queueLength: liveChunkQueue.length,
+        queueBytes: liveChunkBytes,
+        trackForFinal,
+      });
+    } else {
+      logDebug('media recorder chunk buffered (live skipped)', {
+        size: blob.size,
+        type: blob.type || 'unknown',
+        trackForLive,
+        trackForFinal,
+      });
+    }
+    if (trackForFinal) {
+      recordedChunks.push(blob);
+      logDebug('media recorder chunk buffered (final list)', {
+        size: blob.size,
+        type: blob.type || 'unknown',
+        recordedCount: recordedChunks.length,
+      });
+    }
     lastAudioChunk = blob;
-    recordedChunks.push(blob);
   }
 
   async function startMicCapture() {
@@ -1033,8 +1840,10 @@
         state: mediaRecorder.state,
       });
       transcriptionText = '';
+      liveTranscriptSessionStartAt = performance.now();
       clearLiveTranscript();
       heroSpeechCandidate = '';
+      clearLiveTranscriptPending();
       clearLiveTranscribeTimer();
       liveTranscribeInFlight = false;
       if (heroSpeechDebounceTimer) {
@@ -1045,6 +1854,7 @@
       recordedChunks = [];
       liveChunkQueue = [];
       liveChunkBytes = 0;
+      livePcmSilenceFrames = 0;
       lastAudioChunk = null;
       postMessage('音声入力を開始しました。しゃべるとリアルタイムで文字起こしします。');
       setMicBusy(true);
@@ -1060,6 +1870,13 @@
           return;
         }
         logDebug('media recorder chunk available', { size: event.data.size, type: event.data.type || 'unknown' });
+        if (USE_PCM_LIVE_CAPTURE && PCM_LIVE_AS_LIVE_SOURCE) {
+          enqueueAudioChunk(event.data, {
+            trackForLive: false,
+            trackForFinal: !LIVE_ONLY_PIPELINE,
+          });
+          return;
+        }
         enqueueAudioChunk(event.data);
         requestLiveTranscription();
       };
@@ -1068,6 +1885,18 @@
         console.error('[Voxtral] recorder error', event.error);
         postMessage(`音声入力エラー: ${String(event.error && event.error.message ? event.error.message : 'unknown')}`);
       };
+
+      if (USE_PCM_LIVE_CAPTURE && PCM_LIVE_AS_LIVE_SOURCE) {
+        try {
+          startPcmCapture(mediaStream);
+          logDebug('pcm capture started', { enabled: true });
+        } catch (err) {
+          console.error('[Voxtral] pcm capture start failed', err);
+          logDebug('pcm capture start failed', {
+            error: String(err && err.message ? err.message : err),
+          });
+        }
+      }
 
       // Start with timeslice to receive periodic chunks for live commands.
       // This lets child commands be accepted without stopping mic.
@@ -1091,6 +1920,8 @@
   async function stopMicCapture(options = {}) {
     const { finalize = true } = options || {};
     isMicFlowSuspended = true;
+    stopPcmCapture();
+    clearLiveTranscriptPending();
     if (heroSpeechDebounceTimer) {
       clearTimeout(heroSpeechDebounceTimer);
       heroSpeechDebounceTimer = null;
@@ -1111,6 +1942,7 @@
         hasRecorder: Boolean(mediaRecorder),
         state: mediaRecorder ? mediaRecorder.state : 'none',
       });
+      liveTranscriptSessionStartAt = 0;
       return;
     }
 
@@ -1138,16 +1970,16 @@
       validChunks.push(lastAudioChunk);
     }
 
-    const finalBlob = validChunks.length
-      ? new Blob(validChunks, {
-          type: lastMicMimeType || mediaRecorder?.mimeType || 'audio/webm',
-        })
-      : new Blob([], {
-          type: lastMicMimeType || mediaRecorder?.mimeType || 'audio/webm',
-        });
+    if (finalize && !LIVE_ONLY_PIPELINE) {
+      const finalBlob = validChunks.length
+        ? new Blob(validChunks, {
+            type: lastMicMimeType || mediaRecorder?.mimeType || 'audio/webm',
+          })
+        : new Blob([], {
+            type: lastMicMimeType || mediaRecorder?.mimeType || 'audio/webm',
+          });
 
-    const finalBytes = finalBlob && finalBlob.size ? finalBlob.size : 0;
-    if (finalize) {
+      const finalBytes = finalBlob && finalBlob.size ? finalBlob.size : 0;
       if (finalBytes >= FINAL_TRANSCRIBE_MIN_BYTES) {
         liveChunkQueue = [];
         liveChunkBytes = 0;
@@ -1159,40 +1991,54 @@
           headHex,
         });
         try {
-          const text = await sendTranscriptionChunk(finalBlob, { noStream: true });
+          const text = await sendTranscriptionChunk(finalBlob, {
+            noStream: true,
+            allowFlowSuspended: true,
+          });
           if (text && text.trim()) {
             transcriptionText = text;
           } else {
-            postMessage('音声文字起こし: 0文字（文字起こしできませんでした）');
+            logDebug('final transcript empty', { finalBytes });
           }
         } catch (err) {
           console.error('[Voxtral] final audio request failed', err);
-          postMessage(`音声再送信失敗: ${String(err.message || err)}`);
+          logDebug('final transcript request failed', {
+            error: String(err && err.message ? err.message : err),
+          });
         }
       } else {
         logDebug('final audio blob missing', {
           chunks: recordedChunks.length,
           lastChunk: !!lastAudioChunk,
+          finalBytes,
         });
-        const fallbackMessage =
-          finalBytes > 0
-            ? `音声文字起こし: 0文字（録音データが短すぎます: ${finalBytes} bytes）`
-            : '音声文字起こし: 0文字（録音データなし）';
-        postMessage(fallbackMessage);
       }
+    } else if (finalize) {
+      logDebug('final transcript skipped (live-only pipeline)', {
+        chunks: recordedChunks.length,
+        lastChunk: !!lastAudioChunk,
+      });
     }
+    liveTranscriptSessionStartAt = 0;
     isMicFlowSuspended = finalize ? false : true;
     setMicBusy(false);
     notifyHeroListening(false);
-    if (finalize && transcriptionText && transcriptionText.trim()) {
+    if (!LIVE_ONLY_PIPELINE && finalize && transcriptionText && transcriptionText.trim()) {
       const spokenText = transcriptionText.trim();
       notifyHeroSpeech(spokenText);
-      postMessage(spokenText);
+      if (DISPLAY_FINAL_TRANSCRIPT) {
+        postMessage(spokenText);
+      } else {
+        logDebug('final transcript hidden', {
+          length: spokenText.length,
+          reason: 'DISPLAY_FINAL_TRANSCRIPT=false',
+        });
+      }
       logDebug('final transcript', {
         length: transcriptionText.length,
         text: transcriptionText,
       });
-    } else if (finalize) {
+    } else if (!LIVE_ONLY_PIPELINE && finalize) {
       postMessage('音声文字起こし: 0文字');
     }
   }
