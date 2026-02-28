@@ -113,11 +113,8 @@ function updateNpcs(dt) {
         npc.maxX = npc.x + 10;
         npc.commandTargetX = null;
         npc.commandTargetY = null;
-        npc.commandMarkUntil = 0;
         npc.isBuildCommand = false;
         npc.assignedBuildPartId = null;
-        npc.workStartSpeech = '';
-        npc.workStartSpeechUntil = 0;
         // 一度建築したら戻ってくる可能性は0なので、状態をCOMPLETEDに遷移させる
         npc.commandState = NPC_COMMAND_STATES.COMPLETED;
         npc.state = NPC_ACTIVITY_STATES.IDLE; // 到着後にアイドル状態に設定
@@ -1717,10 +1714,10 @@ function draw() {
       isHero: false,
     }, opacity);
 
-    drawBuildMark(e, sx);
     if (shouldShowWorkStartSpeech(e, nowMs)) {
       drawWorkStartSpeechBubble(e, sx, e.workStartSpeech, opacity);
     }
+
     if (shouldShowUninterpretedHint(e, nowMs)) {
       drawUninterpretedHintBubble(e, sx, opacity);
     }

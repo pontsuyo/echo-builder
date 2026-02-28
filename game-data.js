@@ -534,9 +534,8 @@ const COMMAND_LINE = {
   spacing: 18,
   queueSpeed: 140,
   workSpeed: 130,
-  markDisplayMs: 1800,
-  uninterpretedHintDelayMs: 5000,
   workStartSpeechDurationMs: 2800,
+  uninterpretedHintDelayMs: 5000,
   textDisplayMaxLen: 24,
 };
 
@@ -641,7 +640,6 @@ function createNpc(i) {
     walkPhase: 0,
     commandState: NPC_COMMAND_STATES.RETURN_HOME,
     lineSlot: -1,
-    commandMarkUntil: 0,
     isBuildCommand: false,
     preferredPartType: null,
     preferredRoofShape: null,
@@ -751,7 +749,6 @@ function getHousePartLabel(type) {
 
 function resetNpcCommandState(npc) {
   npc.commandState = NPC_COMMAND_STATES.RETURN_HOME;
-  npc.commandMarkUntil = 0;
   npc.lineSlot = -1;
   npc.commandTargetX = null;
   npc.commandTargetY = null;

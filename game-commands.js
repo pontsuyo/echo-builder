@@ -863,9 +863,6 @@ function receiveHeroCommand(text) {
       targetNpc.isBuildCommand = false;
     }
   }
-  targetNpc.commandMarkUntil = targetNpc.isBuildCommand
-    ? performance.now() + COMMAND_LINE.markDisplayMs
-    : 0;
   // 家の横に立つ位置を計算（家の左側にNPCが並ぶ）
   targetNpc.commandTargetX = home.x - 50 - (targetNpc.id * 30);
   targetNpc.commandTargetY = FLOOR_Y - targetNpc.h;
@@ -931,21 +928,6 @@ function moveToward(npc, targetX, speed, dt) {
   const step = Math.min(1, (speed * dt) / Math.max(1, distance));
   npc.x += dx * step;
   return step >= 1;
-}
-
-function drawBuildMark(npc, sx) {
-  if (!npc.isBuildCommand) return;
-  if (npc.commandState !== NPC_COMMAND_STATES.RETURN_HOME) return;
-  if (npc.commandMarkUntil && npc.commandMarkUntil <= performance.now()) return;
-
-  ctx.fillStyle = '#ffef6a';
-  ctx.strokeStyle = '#2a1200';
-  ctx.lineWidth = 1;
-  ctx.fillRect(sx + npc.w * 0.5 - 4, npc.y - 20, 10, 12);
-  ctx.strokeRect(sx + npc.w * 0.5 - 4 + 0.5, npc.y - 20 + 0.5, 9, 11);
-  ctx.fillStyle = '#2a1200';
-  ctx.font = '10px "Courier New", monospace';
-  ctx.fillText('!', sx + npc.w * 0.5 - 2, npc.y - 10);
 }
 
 function getCommandResultRows() {
