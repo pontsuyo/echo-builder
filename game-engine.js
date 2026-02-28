@@ -52,7 +52,11 @@ function updateNpcs(dt) {
       npc.y = npc.commandTargetY ?? FLOOR_Y - npc.h;
 
       if (arrived) {
-        const builtParts = completeBuildForNpcWithQuantity(npc);
+        const builtParts = completeBuildForNpcWithQuantity(
+          npc,
+          npc.preferredPartType,
+          npc.preferredRoofShape
+        );
         if (builtParts && builtParts.length > 0) {
           const partNames = builtParts.map(part => getHousePartLabel(part.type)).join('と');
           addMessage(`子${npc.id} が家の${partNames}を設置しました（${builtParts.length}つ）。`);
@@ -290,6 +294,24 @@ function drawHousePart(part, sx, sy) {
     return;
   }
   if (part.type === 'roof') {
+    const roofShape = part.roofShape || DEFAULT_ROOF_SHAPE;
+    if (roofShape === 'flat') {
+      ctx.fillStyle = palette.houseRoof;
+      ctx.fillRect(sx - 2, sy - 4, 114, 6);
+      return;
+    }
+    if (roofShape === 'round') {
+      const rows = 16;
+      for (let i = 0; i < rows; i += 1) {
+        const t = (i + 1) / (rows + 1);
+        const rowY = sy - 24 + i * 2;
+        const rowW = Math.max(10, Math.round(114 * Math.sin(Math.PI * t)));
+        const rowX = sx + (home.w - rowW) / 2;
+        ctx.fillStyle = i === 0 ? '#9a352a' : palette.houseRoof;
+        ctx.fillRect(rowX, rowY, rowW, 2);
+      }
+      return;
+    }
     for (let i = 0; i < 14; i += 1) {
       const rowY = sy - 4 - i;
       const rx = sx - 4 + i;

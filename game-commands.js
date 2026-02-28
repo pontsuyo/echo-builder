@@ -17,6 +17,12 @@ function createHousePartFromTemplate(template, options = {}) {
     y: options.y !== undefined ? options.y : template.y,
     w: options.w !== undefined ? options.w : (template.w || 0),
     h: options.h !== undefined ? options.h : (template.h || 0),
+    ...(template.type === 'roof'
+      ? {
+          roofShape:
+            options.roofShape !== undefined ? options.roofShape : (template.roofShape || DEFAULT_ROOF_SHAPE),
+        }
+      : {}),
     built: false,
     builtBy: null,
     isDynamic: true,
@@ -58,7 +64,7 @@ function createExtraWindowPart() {
   return part;
 }
 
-function maybeCreateClosestCandidate(type) {
+function maybeCreateClosestCandidate(type, requestedRoofShape = null) {
   if (!type) {
     return null;
   }
@@ -72,17 +78,20 @@ function maybeCreateClosestCandidate(type) {
     return null;
   }
 
+  const roofShape = type === 'roof' ? (requestedRoofShape || DEFAULT_ROOF_SHAPE) : undefined;
+
   const part = createHousePartFromTemplate(template, {
     x: template.x,
     y: template.y,
     w: template.w || 0,
     h: template.h || 0,
+    ...(roofShape ? { roofShape } : {}),
   });
   houseParts.push(part);
   return part;
 }
 
-function buildClosestHousePartForNpc(npc, preferredType) {
+function buildClosestHousePartForNpc(npc, preferredType, requestedRoofShape = null) {
   const unbuilt = houseParts.filter(
     (part) => !part.built && (part.assignedTo == null || part.assignedTo === npc.id)
   );
@@ -91,7 +100,7 @@ function buildClosestHousePartForNpc(npc, preferredType) {
       return null;
     }
 
-    const extraPart = maybeCreateClosestCandidate(preferredType);
+    const extraPart = maybeCreateClosestCandidate(preferredType, requestedRoofShape);
     if (!extraPart) {
       return null;
     }
@@ -106,7 +115,7 @@ function buildClosestHousePartForNpc(npc, preferredType) {
     if (filtered.length) {
       candidates = filtered;
     } else {
-      const extraPart = maybeCreateClosestCandidate(preferredType);
+      const extraPart = maybeCreateClosestCandidate(preferredType, requestedRoofShape);
       if (extraPart) {
         extraPart.assignedTo = npc.id;
         return extraPart.id;
@@ -124,6 +133,10 @@ function buildClosestHousePartForNpc(npc, preferredType) {
       picked = candidate;
       bestDistance = distance;
     }
+  }
+
+  if (requestedRoofShape && picked.type === 'roof') {
+    picked.roofShape = requestedRoofShape;
   }
 
   picked.assignedTo = npc.id;
@@ -146,14 +159,18 @@ function completeBuildForNpc(npc) {
   return part;
 }
 
-function completeBuildForNpcWithQuantity(npc) {
+function completeBuildForNpcWithQuantity(npc, preferredPartType = null, preferredRoofShape = null) {
   const requestedQuantity = Math.max(1, npc.buildQuantity || 1);
-  const preferredPartType = npc.preferredPartType || null;
+  const resolvedPreferredPartType = preferredPartType || npc.preferredPartType || null;
   const completedParts = [];
-  
+
   for (let i = 0; i < requestedQuantity; i += 1) {
     if (npc.assignedBuildPartId === null) {
-      npc.assignedBuildPartId = buildClosestHousePartForNpc(npc, preferredPartType);
+      npc.assignedBuildPartId = buildClosestHousePartForNpc(
+        npc,
+        resolvedPreferredPartType,
+        preferredRoofShape
+      );
     }
 
     const part = completeBuildForNpc(npc);
@@ -166,6 +183,24 @@ function completeBuildForNpcWithQuantity(npc) {
   
   npc.lastBuiltQuantity = completedParts.length;
   return completedParts.length > 0 ? completedParts : null;
+}
+
+function getRequestedRoofShape(text) {
+  if (!text) {
+    return null;
+  }
+
+  if (/\b(round|dome)\b|丸|丸い|ドーム/.test(text)) {
+    return 'round';
+  }
+  if (/\b(flat|flat-roof)\b|平|平ら|平らな屋根/.test(text)) {
+    return 'flat';
+  }
+  if (/\b(triangle|triangular)\b|三角|三角屋根|三角形/.test(text)) {
+    return 'triangle';
+  }
+
+  return null;
 }
 
 function setLiveTranscript(text) {
@@ -311,6 +346,7 @@ function isBuildingCommand(text) {
   const wordSet = new Set(words);
   const hasWord = (w) => wordSet.has(w);
   const hasAnyWord = (arr) => arr.some((w) => hasWord(w));
+  const requestedRoofShape = getRequestedRoofShape(normalized);
 
   // 数字を認識（数字、日本語、英語の数詞をサポート）
   const numberMatch = normalized.match(/\b(\d+)\b/);
@@ -362,10 +398,12 @@ function isBuildingCommand(text) {
     if (rule.re.test(normalized)) {
       const quantityText = quantity > 1 ? ` ${quantity} times` : '';
       const englishLabel = getEnglishLabel(rule.label);
+      const roofShapeText = rule.partType === 'roof' && requestedRoofShape ? ` ${requestedRoofShape}` : '';
       return {
         isBuild: true,
-        interpretation: `I added ${englishLabel}${quantityText}!`,
+        interpretation: `I added ${englishLabel}${roofShapeText}${quantityText}!`,
         preferredPartType: rule.partType || null,
+        roofShape: rule.partType === 'roof' ? requestedRoofShape : null,
         quantity,
       };
     }
@@ -382,7 +420,15 @@ function isBuildingCommand(text) {
   if (hasBuildVerb) {
     const quantityText = quantity > 1 ? ` ${quantity} times` : '';
     if (hasRoof) {
-      return { isBuild: true, interpretation: `I added a roof${quantityText}!`, preferredPartType: 'roof', quantity };
+      const roofShape = requestedRoofShape;
+      const shapeText = roofShape ? ` ${roofShape}` : '';
+      return {
+        isBuild: true,
+        interpretation: `I added a roof${shapeText}${quantityText}!`,
+        preferredPartType: 'roof',
+        roofShape,
+        quantity,
+      };
     }
     if (hasWall) {
       return { isBuild: true, interpretation: `I added a wall${quantityText}!`, preferredPartType: 'wall', quantity };
@@ -458,6 +504,7 @@ function startCommandLineup(options = {}) {
     ordered[i].lastHeardText = '';
     ordered[i].lastInterpretation = '';
     ordered[i].buildQuantity = 1;
+    ordered[i].preferredRoofShape = null;
   }
 
   const firstQueued = ordered[0] || null;
@@ -502,11 +549,16 @@ function receiveHeroCommand(text) {
   targetNpc.lastInterpretation = parsed.interpretation;
   targetNpc.isBuildCommand = parsed.isBuild;
   targetNpc.preferredPartType = parsed.preferredPartType || null;
+  targetNpc.preferredRoofShape = parsed.preferredPartType === 'roof' ? (parsed.roofShape || null) : null;
   targetNpc.buildQuantity = parsed.quantity || 1;
   targetNpc.requestedBuildQuantity = targetNpc.buildQuantity;
   targetNpc.lastBuiltQuantity = 0;
   if (parsed.isBuild) {
-    targetNpc.assignedBuildPartId = buildClosestHousePartForNpc(targetNpc, parsed.preferredPartType);
+    targetNpc.assignedBuildPartId = buildClosestHousePartForNpc(
+      targetNpc,
+      parsed.preferredPartType,
+      targetNpc.preferredRoofShape
+    );
     if (targetNpc.assignedBuildPartId === null) {
       targetNpc.isBuildCommand = false;
     }

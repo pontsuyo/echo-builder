@@ -23,6 +23,9 @@ const palette = {
   houseWindow: '#fdf8b8',
 };
 
+const HOUSE_ROOF_SHAPES = ['round', 'triangle', 'flat'];
+const DEFAULT_ROOF_SHAPE = 'triangle';
+
 const home = {
   x: 1550,
   w: 110,
@@ -31,7 +34,7 @@ const home = {
 
 const HOUSE_PART_BLUEPRINT = [
   { type: 'wall', x: 0, y: 0, w: 110, h: 68 },
-  { type: 'roof', x: -4, y: -4 },
+  { type: 'roof', x: -4, y: -4, roofShape: 'triangle' },
   { type: 'chimney', x: 84, y: -26, w: 8, h: 20 },
   { type: 'door', x: 12, y: 36, w: 14, h: 32 },
   { type: 'window', x: 36, y: 22, w: 12, h: 10 },
@@ -183,6 +186,7 @@ function createNpc(i) {
     commandMarkUntil: 0,
     isBuildCommand: false,
     preferredPartType: null,
+    preferredRoofShape: null,
     requestedBuildQuantity: 1,
     lastBuiltQuantity: 0,
     assignedBuildPartId: null,
@@ -246,6 +250,7 @@ function createHouseParts() {
     y: part.y,
     w: part.w || 0,
     h: part.h || 0,
+    ...(part.type === 'roof' ? { roofShape: part.roofShape || DEFAULT_ROOF_SHAPE } : {}),
     built: false,
     builtBy: null,
   }));
@@ -263,6 +268,7 @@ function resetNpcCommandState(npc) {
   npc.commandTargetY = null;
   npc.isBuildCommand = false;
   npc.preferredPartType = null;
+  npc.preferredRoofShape = null;
   npc.requestedBuildQuantity = 1;
   npc.lastBuiltQuantity = 0;
   npc.assignedBuildPartId = null;
