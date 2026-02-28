@@ -84,7 +84,8 @@ function updateNpcs(dt) {
     }
 
     if (npc.commandState === NPC_COMMAND_STATES.RETURN_HOME) {
-      const targetX = npc.commandTargetX ?? npc.homeX;
+      // 家の横に立つ位置を計算（家の右側にNPCが並ぶ）
+      const targetX = npc.commandTargetX ?? (home.x + home.w + 20 + (npc.id * 30));
       const arrived = moveToward(npc, targetX, COMMAND_LINE.workSpeed, dt);
       npc.state = NPC_ACTIVITY_STATES.WALK;
       npc.walkPhase += dt * 12;
