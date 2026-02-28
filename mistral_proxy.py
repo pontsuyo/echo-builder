@@ -1,8 +1,12 @@
 import os
 import logging
+import subprocess
 import time
 import traceback
-from typing import Iterable, Iterator
+import tempfile
+import sys
+import json
+from typing import Iterable, Iterator, Optional
 
 from flask import g
 
@@ -18,10 +22,48 @@ load_dotenv()
 
 LOG_LEVEL = os.getenv("MISTRAL_PROXY_LOG_LEVEL", "DEBUG").upper()
 LOG_FORMAT = "[%(asctime)s] %(levelname)s %(name)s: %(message)s"
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL, logging.DEBUG),
-    format=LOG_FORMAT,
-)
+LOG_COLOR = os.getenv("MISTRAL_PROXY_NO_COLOR", "0").strip().lower() not in {
+    "1",
+    "true",
+    "on",
+    "yes",
+}
+
+
+def _is_tty_output() -> bool:
+    return bool(getattr(sys.stdout, "isatty", lambda: False)()) and LOG_COLOR
+
+
+class _ColorFormatter(logging.Formatter):
+    _COLORS = {
+        "DEBUG": "\033[90m",  # gray
+        "INFO": "\033[36m",  # cyan
+        "WARNING": "\033[33m",  # yellow
+        "ERROR": "\033[31m",  # red
+        "CRITICAL": "\033[91m",  # bright red
+    }
+    _RESET = "\033[0m"
+
+    def format(self, record):
+        message = super().format(record)
+        if not _is_tty_output():
+            return message
+        color = self._COLORS.get(record.levelname, "")
+        return f"{color}{message}{self._RESET}" if color else message
+
+
+log_level = getattr(logging, LOG_LEVEL, logging.DEBUG)
+root_logger = logging.getLogger()
+root_logger.setLevel(log_level)
+if not root_logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setLevel(log_level)
+    handler.setFormatter(_ColorFormatter(LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S"))
+    root_logger.addHandler(handler)
+else:
+    for handler in root_logger.handlers:
+        if isinstance(handler, logging.StreamHandler):
+            handler.setFormatter(_ColorFormatter(LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S"))
 logger = logging.getLogger("mistral_proxy")
 
 
@@ -30,6 +72,14 @@ API_KEY = os.getenv("MISTRAL_API_KEY", "").strip()
 HOST = os.getenv("MISTRAL_PROXY_HOST", "127.0.0.1")
 PORT = int(os.getenv("MISTRAL_PROXY_PORT", "8001"))
 CORS_ORIGIN = os.getenv("MISTRAL_PROXY_CORS_ORIGIN", "*")
+FFMPEG_REENCODE_TO_WAV = os.getenv("MISTRAL_PROXY_REENCODE_TO_WAV", "").strip().lower() in {
+    "1",
+    "true",
+    "on",
+    "yes",
+}
+FFMPEG_BINARY = os.getenv("FFMPEG_BINARY", "ffmpeg")
+FFMPEG_TARGET_RATE = os.getenv("MISTRAL_PROXY_REENCODE_RATE", "16000").strip()
 
 
 def build_headers() -> dict:
@@ -63,6 +113,178 @@ def _shorten_headers(headers):
         else:
             copied[key] = _short(value)
     return copied
+
+
+def _extract_stt_text(payload: str) -> Optional[str]:
+    if not isinstance(payload, str):
+        return None
+    if not payload.startswith("data:"):
+        return None
+
+    body = payload[len("data:") :].strip()
+    if not body or body == "[DONE]":
+        return None
+
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return body if body.strip() else None
+
+    if isinstance(data, str):
+        return data
+    if not isinstance(data, dict):
+        return None
+
+    for key in ("text", "delta", "payload"):
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+
+    segment = data.get("segment")
+    if isinstance(segment, dict):
+        segment_text = segment.get("text")
+        if isinstance(segment_text, str) and segment_text.strip():
+            return segment_text
+
+    return None
+
+
+def _extract_stt_text_from_json(body: str) -> Optional[str]:
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return None
+
+    if isinstance(data, str):
+        return data
+    if not isinstance(data, dict):
+        return None
+
+    for key in ("text", "transcript", "payload"):
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+
+    if isinstance(data.get("segment"), dict):
+        segment_text = data["segment"].get("text")
+        if isinstance(segment_text, str) and segment_text.strip():
+            return segment_text
+
+    choices = data.get("choices")
+    if isinstance(choices, list) and choices:
+        first = choices[0]
+        if isinstance(first, dict):
+            for key in ("text", "delta"):
+                value = first.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value
+
+    return None
+
+
+def _iter_stt_event_chunks(upstream: requests.Response, request_id: str, path: str) -> Iterator[bytes]:
+    for line in upstream.iter_lines(decode_unicode=True):
+        if line is None:
+            continue
+        text = _extract_stt_text(line)
+        if text and path == "/v1/audio/transcriptions":
+            logger.info("STT_STREAM id=%s path=%s text=%s", request_id, path, _short(text))
+        yield (line + "\n").encode("utf-8")
+
+
+def _ext_from_mime_or_name(file_name: str, mimetype: str) -> str:
+    lower_name = (file_name or "").lower()
+    lower_mime = (mimetype or "").lower()
+    if ".mp4" in lower_name:
+        return ".m4a"
+    if ".webm" in lower_name:
+        return ".webm"
+    if ".m4a" in lower_name:
+        return ".m4a"
+    if ".ogg" in lower_name:
+        return ".ogg"
+
+    if "audio/webm" in lower_mime:
+        return ".webm"
+    if "audio/ogg" in lower_mime:
+        return ".ogg"
+    if "audio/mp4" in lower_mime or "audio/m4a" in lower_mime:
+        return ".m4a"
+    if "audio/wav" in lower_mime:
+        return ".wav"
+    return ".bin"
+
+
+def _maybe_reencode_audio_chunk(file_name: str, mimetype: str, raw: bytes):
+    if not FFMPEG_REENCODE_TO_WAV or not raw:
+        return raw, file_name, mimetype
+
+    out_name = file_name or "chunk.bin"
+    source_ext = _ext_from_mime_or_name(file_name or out_name, mimetype or "")
+    with tempfile.NamedTemporaryFile(suffix=source_ext, delete=False) as source_file:
+        source_path = source_file.name
+        source_file.write(raw)
+
+    output_path = f"{source_path}.wav"
+    try:
+        logger.debug(
+            "TRANSCODE id=%s start file=%s size=%s mime=%s source_ext=%s",
+            g.request_id,
+            out_name,
+            len(raw),
+            mimetype or "unknown",
+            source_ext,
+        )
+        subprocess.run(
+            [
+                FFMPEG_BINARY,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                source_path,
+                "-acodec",
+                "pcm_s16le",
+                "-ac",
+                "1",
+                "-ar",
+                FFMPEG_TARGET_RATE,
+                "-f",
+                "wav",
+                output_path,
+            ],
+            check=True,
+            timeout=20,
+            capture_output=True,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as err:
+        message = str(err)
+        if not message:
+            message = err.__class__.__name__
+        logger.warning(
+            "TRANSCODE id=%s failed (%s) fallback original",
+            g.request_id,
+            message,
+        )
+        try:
+            os.unlink(source_path)
+        except Exception:
+            pass
+        try:
+            os.unlink(output_path)
+        except Exception:
+            pass
+        return raw, file_name, mimetype
+
+    with open(output_path, "rb") as converted:
+        converted_bytes = converted.read()
+    try:
+        os.unlink(source_path)
+        os.unlink(output_path)
+    except Exception:
+        pass
+    return converted_bytes, os.path.splitext(out_name)[0] + ".wav", "audio/wav"
 
 
 @app.before_request
@@ -135,11 +357,21 @@ def proxy_request(path: str) -> Response:
                 response.status_code = 400
                 return add_cors_headers(response)
 
+            uploaded_name = file_obj.filename or "chunk.bin"
+            uploaded_type = file_obj.mimetype or "application/octet-stream"
+            file_body = file_obj.stream.read()
+            if request.path == "/v1/audio/transcriptions":
+                file_body, uploaded_name, uploaded_type = _maybe_reencode_audio_chunk(
+                    uploaded_name,
+                    uploaded_type,
+                    file_body,
+                )
+
             files = {
                 "file": (
-                    file_obj.filename,
-                    file_obj.stream.read(),
-                    file_obj.mimetype or "application/octet-stream",
+                    uploaded_name,
+                    file_body,
+                    uploaded_type,
                 )
             }
             upstream = requests.post(
@@ -209,13 +441,21 @@ def proxy_request(path: str) -> Response:
     if content_type and "text/event-stream" in content_type:
         return add_cors_headers(
             Response(
-                iter_response_chunks(upstream),
+                _iter_stt_event_chunks(
+                    upstream,
+                    g.request_id,
+                    request.path,
+                ),
                 status=upstream.status_code,
                 content_type=content_type,
             )
         )
 
     if content_type and "application/json" in content_type:
+        if request.path == "/v1/audio/transcriptions":
+            stt_text = _extract_stt_text_from_json(upstream.text)
+            if stt_text:
+                logger.info("STT_RESULT id=%s path=%s text=%s", g.request_id, request.path, _short(stt_text))
         logger.debug(
             "UPSTREAM id=%s response_body=%s",
             g.request_id,
