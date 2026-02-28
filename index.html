@@ -25,22 +25,65 @@
       body {
         display: grid;
         place-items: center;
+        position: relative;
+      }
+
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(circle at 50% 16%, rgba(170, 212, 255, 0.14), transparent 60%);
+        opacity: 0.2;
       }
 
       #wrap {
         display: grid;
         gap: 10px;
         justify-items: center;
+        position: relative;
+        z-index: 1;
+      }
+
+      .stage-shell {
+        width: min(96vw, 1280px);
+        position: relative;
+        filter: none;
+      }
+
+      .stage-shell::before {
+        content: '';
+        display: none;
+        pointer-events: none;
+      }
+
+      .stage-frame {
+        position: relative;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+      }
+
+      .stage-frame::before {
+        content: '';
+        display: none;
+        pointer-events: none;
       }
 
       canvas {
-        width: min(96vw, 1280px);
+        display: block;
+        width: 100%;
         aspect-ratio: 16 / 9;
-        max-height: 92vh;
         image-rendering: auto;
         border: 3px solid #5b6a8a;
         background: #081327;
         box-shadow: 0 16px 50px rgba(0, 0, 0, 0.55);
+      }
+
+      .frame-corner {
+        display: none;
+        pointer-events: none;
       }
 
       .hint {
@@ -111,7 +154,15 @@
     </div>
 
     <div id="wrap">
-      <canvas id="game" width="640" height="360"></canvas>
+      <div class="stage-shell">
+        <div class="stage-frame">
+          <canvas id="game" width="640" height="360"></canvas>
+          <span class="frame-corner frame-corner-tl" aria-hidden="true"></span>
+          <span class="frame-corner frame-corner-tr" aria-hidden="true"></span>
+          <span class="frame-corner frame-corner-bl" aria-hidden="true"></span>
+          <span class="frame-corner frame-corner-br" aria-hidden="true"></span>
+        </div>
+      </div>
       <div class="toolbar">
         <button id="toggle-command-result">Command Log</button>
         <button id="ask-voxtral-mic">START</button>
