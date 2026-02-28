@@ -426,7 +426,12 @@ let blinkCounter = 0;
 let blinkingNpcId = null; // 点滅対象のNPC ID
 
 function startBlinking(npcId = null) {
-  if (isBlinking) return;
+  if (isBlinking && blinkingNpcId === npcId) return;
+  
+  if (blinkTimer) {
+    clearInterval(blinkTimer);
+  }
+  
   isBlinking = true;
   blinkCounter = 0;
   blinkingNpcId = npcId; // 点滅対象のNPC IDを設定
@@ -443,6 +448,24 @@ function stopBlinking() {
   isBlinking = false;
   blinkCounter = 0;
   blinkingNpcId = null;
+}
+
+// QUEUED状態の子供のうち、最も先頭にいる子供を返す
+function getFirstQueuedChild() {
+  if (npcs.length === 0) return null;
+  
+  // QUEUED状態の子供を抽出
+  const queuedChildren = npcs.filter(npc => npc.commandState === NPC_COMMAND_STATES.QUEUED);
+  
+  if (queuedChildren.length === 0) return null;
+  
+  // playerに最も近い子供を返す
+  const direction = player.facing >= 0 ? 1 : -1;
+  return queuedChildren.reduce((closest, npc) => {
+    const projected = (npc.x - player.x) * direction;
+    const closestProjected = (closest.x - player.x) * direction;
+    return projected < closestProjected ? npc : closest;
+  });
 }
 
 function draw() {

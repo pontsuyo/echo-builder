@@ -262,11 +262,6 @@ function getFrontOrderedNpcs() {
   
   const ordered = front.concat(back);
   
-  // 並び順が変更されたときに点滅を再開
-  if (ordered.length > 0 && typeof startBlinking === 'function') {
-    startBlinking(ordered[0].id);
-  }
-  
   return ordered;
 }
 
@@ -459,8 +454,11 @@ function startCommandLineup(options = {}) {
   addMessage('作業を開始します。');
   
   // 先頭の子供を点滅させる
-  if (typeof startBlinking === 'function' && ordered.length > 0) {
-    startBlinking(ordered[0].id);
+  if (typeof getFirstQueuedChild === 'function' && typeof startBlinking === 'function') {
+    const firstQueued = getFirstQueuedChild();
+    if (firstQueued) {
+      startBlinking(firstQueued.id);
+    }
   }
 }
 
@@ -512,6 +510,14 @@ function receiveHeroCommand(text) {
   if (targetNpc.lastInterpretation) {
     updateChildInterpretation(targetNpc.id, targetNpc.lastInterpretation);
   }
+  
+  // 点滅対象を更新（RETURN_HOMEになった子供の次にQUEUEDの子供を点滅対象にする）
+  if (typeof getFirstQueuedChild === 'function' && typeof startBlinking === 'function') {
+    const nextQueued = getFirstQueuedChild();
+    if (nextQueued) {
+      startBlinking(nextQueued.id);
+    }
+  }
 
   appendCommandResultToLog(targetNpc);
   const wasFirstBuilder = commandSession.cursor === 0 && targetNpc.isBuildCommand;
@@ -532,11 +538,6 @@ function receiveHeroCommand(text) {
     if (wasFirstBuilder && !firstBuilderAudioPaused) {
       firstBuilderAudioPaused = true;
       pauseMicForBuildAndResumeNextChild(true);
-    }
-    
-    // 点滅対象を次に指示を聞く子供に更新
-    if (typeof startBlinking === 'function') {
-      startBlinking(next.id);
     }
   }
 }
