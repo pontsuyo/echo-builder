@@ -98,6 +98,9 @@ function updateNpcs(dt) {
           addMessage(`子${npc.id} が家の${partName}を設置しました。`);
         }
         npc.commandState = NPC_COMMAND_STATES.ROAM;
+        // 家の横に留まるため、minXとmaxXを現在位置付近に設定
+        npc.minX = npc.x - 10;
+        npc.maxX = npc.x + 10;
         npc.commandTargetX = null;
         npc.commandTargetY = null;
         npc.commandMarkUntil = 0;
