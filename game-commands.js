@@ -387,9 +387,12 @@ function appendCommandResultToLog(child) {
   commandResultRows = commandResultRows.sort((a, b) => a.childId - b.childId);
 }
 
-function startCommandLineup() {
+function startCommandLineup(options = {}) {
+  const { silentIfActive = false } = options || {};
   if (commandSession.active) {
-    addMessage('すでに作業中です。');
+    if (!silentIfActive) {
+      addMessage('すでに作業中です。');
+    }
     return;
   }
 

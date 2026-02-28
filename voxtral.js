@@ -90,9 +90,9 @@
   const HERO_SPEECH_MIN_LEN = 2;
   const HERO_SPEECH_IDLE_MS = 600;
   const HERO_SPEECH_COOLDOWN_MS = 700;
-  const LIVE_TRANSCRIBE_DELAY_MS = 850;
+  const LIVE_TRANSCRIBE_DELAY_MS = 100;
   const LIVE_TRANSCRIBE_MIN_BYTES = 16000;
-  const LIVE_TRANSCRIBE_TARGET_MS = 1200;
+  const LIVE_TRANSCRIBE_TARGET_MS = 1000;
   const LIVE_STREAM_MAX_WINDOW_MS = 4500;
   const LIVE_STREAM_MIN_COMMIT_LEN = 8;
   const LIVE_STREAM_COMMIT_GRACE_MS = 550;
@@ -1330,6 +1330,9 @@
 
     lastHeroSpeechSentText = speechText;
     lastHeroSpeechSentAt = performance.now();
+    if (gameApi && typeof gameApi.startCommandLineup === 'function') {
+      gameApi.startCommandLineup({ silentIfActive: true });
+    }
     if (gameApi && typeof gameApi.onHeroSpeech === 'function') {
       gameApi.onHeroSpeech(speechText);
     }
