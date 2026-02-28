@@ -6,6 +6,8 @@
   const AUDIO_MODEL_CANDIDATES = [VOXTRAL_AUDIO_MODEL];
   const CHAT_ENDPOINT_PATH = '/v1/chat/completions';
   const AUDIO_ENDPOINT_PATH = '/v1/audio/transcriptions';
+  const MIC_TIMESLICE_MS = 2000;
+  const MIC_STOP_FLUSH_DELAY_MS = 80;
 
   function normalizeEndpoint(url, fallback) {
     const raw = String(url || fallback || '').trim();
@@ -243,11 +245,6 @@
     }
   }
 
-  function isAudioDecodeErrorText(detail) {
-    const text = String(detail || '').toLowerCase();
-    return text.includes('decode') || text.includes('audio input could not be decoded') || text.includes('could not be decoded');
-  }
-
   async function toWavBlob(sourceBlob) {
     if (!sourceBlob || !sourceBlob.size) {
       throw new Error('変換対象の音声データがありません');
@@ -348,7 +345,11 @@
   function isDecodeError(status, detail) {
     if (status !== 400) return false;
     const text = String(detail || '').toLowerCase();
-    return text.includes('could not be decoded') || text.includes('audio input could not be decoded');
+    return (
+      text.includes('could not be decoded') ||
+      text.includes('audio input could not be decoded') ||
+      text.includes('decode')
+    );
   }
 
   async function readStreamingText(response, onChunk, extractor) {
@@ -879,58 +880,58 @@
         throw networkErr;
       }
 
-        if (!res.ok) {
-        const errorBodyText = await res.text().catch(() => '');
-        const errorBody = safeParseErrorBody(errorBodyText);
-        const parsedCode = extractErrorCodeFromBody(errorBody);
-        const parsedDetail = extractErrorDetailFromBody(errorBody);
-        const detail =
-          parsedDetail ||
-          (typeof errorBodyText === 'string' && errorBodyText.length
-            ? errorBodyText
-            : 'No error detail');
-        console.error('[Voxtral] audio request failed', {
+    if (!res.ok) {
+      const errorBodyText = await res.text().catch(() => '');
+      const errorBody = safeParseErrorBody(errorBodyText);
+      const parsedCode = extractErrorCodeFromBody(errorBody);
+      const parsedDetail = extractErrorDetailFromBody(errorBody);
+      const detail =
+        parsedDetail ||
+        (typeof errorBodyText === 'string' && errorBodyText.length
+          ? errorBodyText
+          : 'No error detail');
+      console.error('[Voxtral] audio request failed', {
+        requestId,
+        status: res.status,
+        statusText: res.statusText,
+        url: res.url,
+        headers: toHeaderObj(res.headers),
+        body: errorBodyText,
+      });
+      logDebug('audio request failed detail', {
+        requestId,
+        fileName,
+        fileType: file.type,
+        fileSize: file.size,
+        detail,
+        code: parsedCode || 'none',
+        bodyPreview: summarizeBodyForLog(errorBodyText, 500),
+        endpoint: AUDIO_API.endpoint,
+      });
+      if (isDecodeError(res.status, detail)) {
+        logDebug('audio decode failure detected', {
           requestId,
-          status: res.status,
-          statusText: res.statusText,
-          url: res.url,
-          headers: toHeaderObj(res.headers),
-          body: errorBodyText,
+          reason: detail,
         });
-        logDebug('audio request failed detail', {
-          requestId,
-          fileName,
-          fileType: file.type,
-          fileSize: file.size,
-          detail,
-          code: parsedCode || 'none',
-          bodyPreview: summarizeBodyForLog(errorBodyText, 500),
-          endpoint: AUDIO_API.endpoint,
-        });
-        if (isDecodeError(res.status, detail) || isAudioDecodeErrorText(detail)) {
-          logDebug('audio decode failure detected', {
-            requestId,
-            reason: detail,
-          });
-          if (i + 1 < attempts.length) {
-            continue;
-          }
+        if (i + 1 < attempts.length) {
+          continue;
         }
-        if (isInvalidModelError(res.status, detail)) {
-          if (i + 1 < attempts.length) {
-            logDebug('audio model fallback retry', {
-              requestId,
-              fromModel: model,
-              nextModel: attempts[i + 1].model,
-              nextKind: attempts[i + 1].kind,
-            });
-            continue;
-          }
-        }
-        throw new Error(`音声API ${res.status}: ${detail}`);
       }
+      if (isInvalidModelError(res.status, detail)) {
+        if (i + 1 < attempts.length) {
+          logDebug('audio model fallback retry', {
+            requestId,
+            fromModel: model,
+            nextModel: attempts[i + 1].model,
+            nextKind: attempts[i + 1].kind,
+          });
+          continue;
+        }
+      }
+      throw new Error(`音声API ${res.status}: ${detail}`);
+    }
 
-      const contentType = res.headers.get('content-type') || '';
+    const contentType = res.headers.get('content-type') || '';
       logDebug('audio response headers', {
         requestId,
         contentType,
@@ -1069,9 +1070,9 @@
 
       // Start with timeslice to receive periodic chunks for live commands.
       // This lets child commands be accepted without stopping mic.
-      mediaRecorder.start(2000);
+      mediaRecorder.start(MIC_TIMESLICE_MS);
       logDebug('media recorder started', {
-        timesliceMs: 2000,
+        timesliceMs: MIC_TIMESLICE_MS,
         state: mediaRecorder.state,
       });
     } catch (err) {
@@ -1124,7 +1125,7 @@
       mediaRecorder.stop();
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await new Promise((resolve) => setTimeout(resolve, MIC_STOP_FLUSH_DELAY_MS));
 
     if (mediaStream) {
       mediaStream.getTracks().forEach((t) => t.stop());
@@ -1293,49 +1294,26 @@
       const audioBlob = await response.blob();
       logDebug(`オーディオファイル読み込み完了: ${audioBlob.size} bytes, type: ${audioBlob.type}`);
 
-      // オーディオファイルを送信
-      const formData = new FormData();
-      formData.append('file', audioBlob, 'test_audio.wav');
-      formData.append('model', AUDIO_API.model);
-
-      logDebug(`送信先: ${AUDIO_API.endpoint}`);
-      logDebug(`モデル: ${AUDIO_API.model}`);
-
-      const audioResponse = await fetch(AUDIO_API.endpoint, {
-        method: 'POST',
-        body: formData,
+      const resultText = await sendTranscriptionChunk(audioBlob, {
+        noStream: true,
+        minBytes: 1,
       });
-
-      logDebug(`レスポンスステータス: ${audioResponse.status}`);
-
-      if (!audioResponse.ok) {
-        const errorText = await audioResponse.text();
-        throw new Error(`APIリクエスト失敗: ${audioResponse.status} - ${errorText}`);
+      if (!resultText || !resultText.trim()) {
+        postMessage('テスト音声: 0文字（文字起こしできませんでした）');
+        return;
       }
 
-      const result = await audioResponse.json();
-      logDebug('音声認識結果:', result);
-
-      // 結果を表示
-      if (result.text) {
-        transcriptionText = result.text;
-        if (typeof setLiveTranscript === 'function') {
-          setLiveTranscript(transcriptionText);
-        }
-        logDebug(`認識テキスト: ${transcriptionText}`);
-
-        // ゲームエンジンにテキストを渡す（マイク入力時と同じ処理）
-        if (gameApi && typeof gameApi.onHeroSpeech === 'function') {
-          logDebug('ゲームエンジンにテキストを渡します');
-          gameApi.onHeroSpeech(transcriptionText);
-        } else {
-          logDebug('gameApiが見つかりません');
-        }
-      } else {
-        logDebug('認識テキストが空です');
+      transcriptionText = resultText;
+      if (typeof setLiveTranscript === 'function') {
+        setLiveTranscript(transcriptionText);
       }
+      if (gameApi && typeof gameApi.onHeroSpeech === 'function') {
+        gameApi.onHeroSpeech(transcriptionText);
+      }
+      logDebug(`認識テキスト: ${transcriptionText}`);
     } catch (error) {
       logDebug('テストオーディオ送信エラー:', error);
+      postMessage(`テスト音声処理失敗: ${String(error && error.message ? error.message : error)}`);
     } finally {
       isRequesting = false;
     }
