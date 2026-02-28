@@ -279,8 +279,8 @@ function receiveHeroCommand(text) {
     targetNpc.assignedBuildPartId = buildClosestHousePartForNpc(targetNpc, parsed.preferredPartType);
     targetNpc.commandMarkUntil = performance.now() + COMMAND_LINE.markDisplayMs;
   }
-  // 家の横に立つ位置を計算（家の右側にNPCが並ぶ）
-  targetNpc.commandTargetX = home.x + home.w + 20 + (targetNpc.id * 30);
+  // 家の横に立つ位置を計算（家の左側にNPCが並ぶ）
+  targetNpc.commandTargetX = home.x - 50 - (targetNpc.id * 30);
   targetNpc.commandTargetY = FLOOR_Y - targetNpc.h;
 
   if (parsed.isBuild) {
