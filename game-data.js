@@ -199,6 +199,7 @@ function createNpc(i) {
     commandMarkUntil: 0,
     isBuildCommand: false,
     assignedBuildPartId: null,
+    buildQuantity: 1,
     lastHeardText: '',
     lastInterpretation: '',
     commandTargetX: null,
@@ -260,4 +261,5 @@ function resetNpcCommandState(npc) {
   npc.commandTargetY = null;
   npc.isBuildCommand = false;
   npc.assignedBuildPartId = null;
+  npc.buildQuantity = 1;
 }

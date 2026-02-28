@@ -92,10 +92,10 @@ function updateNpcs(dt) {
       npc.y = npc.commandTargetY ?? FLOOR_Y - npc.h;
 
       if (arrived) {
-        const builtPart = completeBuildForNpc(npc);
-        if (builtPart) {
-          const partName = getHousePartLabel(builtPart.type);
-          addMessage(`子${npc.id} が家の${partName}を設置しました。`);
+        const builtParts = completeBuildForNpcWithQuantity(npc);
+        if (builtParts && builtParts.length > 0) {
+          const partNames = builtParts.map(part => getHousePartLabel(part.type)).join('と');
+          addMessage(`子${npc.id} が家の${partNames}を設置しました（${builtParts.length}つ）。`);
         }
         // 家の横に留まるため、minXとmaxXを現在位置付近に設定
         npc.minX = npc.x - 10;

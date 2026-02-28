@@ -51,6 +51,20 @@ function completeBuildForNpc(npc) {
   return part;
 }
 
+function completeBuildForNpcWithQuantity(npc) {
+  const quantity = npc.buildQuantity || 1;
+  const completedParts = [];
+  
+  for (let i = 0; i < quantity; i++) {
+    const part = completeBuildForNpc(npc);
+    if (part) {
+      completedParts.push(part);
+    }
+  }
+  
+  return completedParts.length > 0 ? completedParts : null;
+}
+
 function setLiveTranscript(text) {
   const line = String(text || '');
   if (!line) {
@@ -146,10 +160,12 @@ function getCommandLineX(slot) {
 }
 
 function isBuildingCommand(text) {
-  const raw = (text || '').trim().toLowerCase();
+  const raw = (text || '').trim();
   if (!raw) return { isBuild: false, interpretation: '聞き取れませんでした' };
 
   const normalized = raw
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase()
     .replace(/[。、!！?？,、]/g, ' ')
     .replace(/[."'(){}\[\],!?]/g, ' ')
     .replace(/\s+/g, ' ')
@@ -159,12 +175,60 @@ function isBuildingCommand(text) {
   const hasWord = (w) => wordSet.has(w);
   const hasAnyWord = (arr) => arr.some((w) => hasWord(w));
 
+  // 数字を認識（数字、日本語、英語の数詞をサポート）
+  const numberMatch = normalized.match(/\b(\d+)\b/);
+  let quantity = 1;
+  if (numberMatch) {
+    quantity = parseInt(numberMatch[1], 10);
+  } else {
+    const japaneseMatch = normalized.match(/([一二三四五六七八九十]+)/);
+    if (japaneseMatch) {
+      // 日本語の数字を変換
+      const japaneseNumbers = {
+        一: 1,
+        二: 2,
+        三: 3,
+        四: 4,
+        五: 5,
+        六: 6,
+        七: 7,
+        八: 8,
+        九: 9,
+        十: 10,
+      };
+      quantity = japaneseNumbers[japaneseMatch[1]] || 1;
+    } else {
+      const englishNumberWords = {
+        one: 1,
+        two: 2,
+        three: 3,
+        four: 4,
+        five: 5,
+        six: 6,
+        seven: 7,
+        eight: 8,
+        nine: 9,
+        ten: 10,
+      };
+      for (let i = 0; i < words.length; i += 1) {
+        const token = words[i];
+        const hit = Object.entries(englishNumberWords).find(([word]) => token === word || token.startsWith(word));
+        if (hit) {
+          quantity = hit[1];
+          break;
+        }
+      }
+    }
+  }
+
   for (const rule of BUILD_COMMAND_RULES) {
     if (rule.re.test(normalized)) {
+      const quantityText = quantity > 1 ? ` ${quantity}つ` : '';
       return {
         isBuild: true,
-        interpretation: `建築指示: ${rule.label}`,
+        interpretation: `建築指示: ${rule.label}${quantityText}`,
         preferredPartType: rule.partType || null,
+        quantity,
       };
     }
   }
@@ -178,26 +242,27 @@ function isBuildingCommand(text) {
   const hasHouse = hasAnyWord(BUILD_KEYWORDS.house);
 
   if (hasBuildVerb) {
+    const quantityText = quantity > 1 ? ` ${quantity}つ` : '';
     if (hasRoof) {
-      return { isBuild: true, interpretation: '建築指示: 屋根', preferredPartType: 'roof' };
+      return { isBuild: true, interpretation: `建築指示: 屋根${quantityText}`, preferredPartType: 'roof', quantity };
     }
     if (hasWall) {
-      return { isBuild: true, interpretation: '建築指示: 壁/塀', preferredPartType: 'wall' };
+      return { isBuild: true, interpretation: `建築指示: 壁/塀${quantityText}`, preferredPartType: 'wall', quantity };
     }
     if (hasChimney) {
-      return { isBuild: true, interpretation: '建築指示: 煙突', preferredPartType: 'chimney' };
+      return { isBuild: true, interpretation: `建築指示: 煙突${quantityText}`, preferredPartType: 'chimney', quantity };
     }
     if (hasDoor) {
-      return { isBuild: true, interpretation: '建築指示: 門', preferredPartType: 'door' };
+      return { isBuild: true, interpretation: `建築指示: 門${quantityText}`, preferredPartType: 'door', quantity };
     }
     if (hasWindow) {
-      return { isBuild: true, interpretation: '建築指示: 窓', preferredPartType: 'window' };
+      return { isBuild: true, interpretation: `建築指示: 窓${quantityText}`, preferredPartType: 'window', quantity };
     }
     if (hasHouse) {
-      return { isBuild: true, interpretation: '建築全般', preferredPartType: null };
+      return { isBuild: true, interpretation: `建築全般${quantityText}`, preferredPartType: null, quantity };
     }
 
-    return { isBuild: true, interpretation: '建築指示として判定しました', preferredPartType: null };
+    return { isBuild: true, interpretation: `建築指示として判定しました${quantity > 1 ? ` (${quantity}つ)` : ''}`, preferredPartType: null, quantity };
   }
 
   return { isBuild: false, interpretation: '建築指示として判定できませんでした' };
@@ -208,6 +273,7 @@ function appendCommandResultToLog(child) {
     childId: child.id,
     heard: child.lastHeardText || '',
     interpreted: child.lastInterpretation || '',
+    quantity: child.buildQuantity || 1,
   };
   const idx = commandResultRows.findIndex((r) => r.childId === entry.childId);
   if (idx >= 0) {
@@ -248,6 +314,7 @@ function startCommandLineup() {
     ordered[i].lineSlot = i;
     ordered[i].lastHeardText = '';
     ordered[i].lastInterpretation = '';
+    ordered[i].buildQuantity = 1;
   }
 
   updateCommandButtons();
@@ -275,6 +342,7 @@ function receiveHeroCommand(text) {
   targetNpc.lastInterpretation = parsed.interpretation;
   targetNpc.isBuildCommand = parsed.isBuild;
   targetNpc.assignedBuildPartId = null;
+  targetNpc.buildQuantity = parsed.quantity || 1;
   if (parsed.isBuild) {
     targetNpc.assignedBuildPartId = buildClosestHousePartForNpc(targetNpc, parsed.preferredPartType);
     targetNpc.commandMarkUntil = performance.now() + COMMAND_LINE.markDisplayMs;
@@ -349,6 +417,7 @@ function getCommandResultRows() {
       {
         heard: ensureResultText(row.heard),
         interpreted: ensureResultText(row.interpreted),
+        quantity: row.quantity || 1,
       },
     ])
   );
@@ -359,6 +428,7 @@ function getCommandResultRows() {
       childId: npc.id,
       heard: ensureResultText(rowsById.get(npc.id)?.heard),
       interpreted: ensureResultText(rowsById.get(npc.id)?.interpreted),
+      quantity: rowsById.get(npc.id)?.quantity || 1,
     }));
 }
 
@@ -382,10 +452,11 @@ function drawCommandResultPanel() {
 
   for (let i = 0; i < lines.length; i += 1) {
     const item = lines[i];
+    const quantityText = item.quantity > 1 ? ` / 個数: ${item.quantity}つ` : '';
     const lineText = `子${item.childId}: 聞取="${truncateText(
       item.heard,
       COMMAND_LINE.textDisplayMaxLen
-    )}" / 解釈="${truncateText(item.interpreted, COMMAND_LINE.textDisplayMaxLen)}"`;
+    )}" / 解釈="${truncateText(item.interpreted, COMMAND_LINE.textDisplayMaxLen)}"${quantityText}`;
     ctx.fillText(lineText, x + 6, y + 30 + i * rowHeight);
   }
 }
