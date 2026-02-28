@@ -1,5 +1,6 @@
 function resetGame() {
   clear = false;
+  houseRevealMicStopped = false;
   addMessage('2D Dot Meadow - リトライ可能');
   resetPlayer();
   selectRandomGoal(Date.now());
@@ -21,6 +22,36 @@ function resetGame() {
     ordered[i].x = getCommandLineX(i); // 整列位置に設定
     ordered[i].y = FLOOR_Y - ordered[i].h;
   }
+}
+
+let houseRevealMicStopped = false;
+
+function stopHouseRevealMicIfNeeded() {
+  if (houseRevealMicStopped) {
+    return;
+  }
+
+  if (!houseRevealActive) {
+    return;
+  }
+
+  const builtParts = houseParts.filter((part) => part.built);
+  if (!builtParts.length) {
+    return;
+  }
+
+  const sx = home.x - cameraX;
+  const isHouseVisible = !(sx + home.w < -20 || sx > W + 20);
+  if (!isHouseVisible) {
+    return;
+  }
+
+  if (typeof window.pauseVoxtralMic === 'function') {
+    window.pauseVoxtralMic();
+  } else if (typeof window.stopVoxtralMic === 'function') {
+    window.stopVoxtralMic();
+  }
+  houseRevealMicStopped = true;
 }
 
 function resetPlayer() {
@@ -180,6 +211,7 @@ function updateCamera(dt) {
   }
 
   if (houseRevealActive) {
+    stopHouseRevealMicIfNeeded();
     const target = clamp(home.x - W * HOUSE_REVEAL_TARGET_OFFSET, 0, WORLD_W - W);
     const dx = target - cameraX;
     const step = HOUSE_REVEAL_SPEED * dt;
@@ -217,12 +249,11 @@ function updateCamera(dt) {
           addMessage(`子${child.childId}の解釈: ${child.interpretation}`);
         }
       }
-      
-      // 音声入力を自動で停止
-      if (typeof window.stopVoxtralMic === 'function') {
-        window.stopVoxtralMic();
+
+      if (!houseRevealMicStopped) {
+        stopHouseRevealMicIfNeeded();
       }
-      
+
       return;
     }
     cameraX += dx > 0 ? step : -step;
