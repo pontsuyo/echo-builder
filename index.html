@@ -61,6 +61,13 @@
         cursor: pointer;
       }
 
+      /* テストボタン用スタイル */
+      .test-button {
+        border: 1px solid #8b5cf6;
+        background: #3b1c66;
+        color: #f0e0ff;
+      }
+
       button:disabled {
         opacity: 0.5;
         cursor: not-allowed;
@@ -74,6 +81,8 @@
         <button id="start-command-lineup">命令開始</button>
         <button id="toggle-command-result">結果確認</button>
         <button id="ask-voxtral-mic">マイク開始</button>
+        <button id="test-red-roof" class="test-button">テスト:赤い屋根</button>
+        <button id="test-two-windows" class="test-button">テスト:窓2つ</button>
         <span class="hint">←→で移動 / Zでジャンプ / Rでリトライ / M:マイク開始・停止 / 「命令開始」→列に並ぶ</span>
       </div>
     </div>
@@ -81,6 +90,7 @@
     <script>
       // Voxtral/APIキーはブラウザ直書き禁止（開発はローカルプロキシ経由）
       window.__MISTRAL_PROXY_URL = 'http://127.0.0.1:8001';
+      window.__MISTRAL_PROXY_AUDIO_URL = 'http://127.0.0.1:8001';
       window.__MISTRAL_API_MODEL = 'mistral-small-latest';
       window.__MISTRAL_AUDIO_TRANSCRIPT_MODEL = 'voxtral-mini-latest';
       window.__MISTRAL_DEBUG = true;

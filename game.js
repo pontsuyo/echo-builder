@@ -162,8 +162,9 @@ let message = '2D Dot Meadow';
 let cameraX = 0;
 let walkTime = 0;
 let lastTime = performance.now();
-let liveTranscriptLines = [];
-const LIVE_TRANSCRIPT_MAX_LINES = 6;
+let liveTranscriptLine = '';
+let latestLiveTranscript = '';
+let firstBuilderAudioPaused = false;
 
 function clamp(v, min, max) {
   if (v < min) return min;
@@ -250,15 +251,57 @@ function completeBuildForNpc(npc) {
 }
 
 function setLiveTranscript(text) {
-  const line = String(text || '').trim();
+  const line = String(text || '');
   if (!line) {
-    liveTranscriptLines = [];
+    liveTranscriptLine = '';
+    latestLiveTranscript = '';
     return;
   }
-  if (liveTranscriptLines[liveTranscriptLines.length - 1] === line) {
+
+  if (latestLiveTranscript && line === latestLiveTranscript) {
     return;
   }
-  liveTranscriptLines = [...liveTranscriptLines, line].slice(-LIVE_TRANSCRIPT_MAX_LINES);
+
+  if (latestLiveTranscript && line.startsWith(latestLiveTranscript)) {
+    const appended = line.slice(latestLiveTranscript.length);
+    if (appended) {
+      liveTranscriptLine += appended;
+    } else {
+      liveTranscriptLine = line;
+    }
+  } else {
+    liveTranscriptLine = line;
+  }
+
+  latestLiveTranscript = line;
+}
+
+function pauseMicForBuildAndResumeNextChild(nextHasTurn) {
+  setLiveTranscript('');
+
+  const stopPromise =
+    typeof window.pauseVoxtralMic === 'function'
+      ? Promise.resolve(window.pauseVoxtralMic())
+      : typeof window.stopVoxtralMic === 'function'
+      ? Promise.resolve(window.stopVoxtralMic({ finalize: false }))
+      : Promise.resolve();
+
+  if (!nextHasTurn) {
+    stopPromise.catch(() => {});
+    return;
+  }
+
+  stopPromise
+    .catch((err) => {
+      console.error('[game] pauseVoxtralMic failed', err);
+    })
+    .finally(() => {
+      if (typeof window.startVoxtralMic === 'function') {
+        window.startVoxtralMic();
+      } else {
+        console.error('[game] startVoxtralMic not available');
+      }
+    });
 }
 
 function updateCommandButtons() {
@@ -364,6 +407,7 @@ function startCommandLineup() {
   }
 
   commandSession.active = true;
+  firstBuilderAudioPaused = false;
   commandSession.queue = ordered;
   commandSession.cursor = 0;
   allOrdersReceived = false;
@@ -432,6 +476,7 @@ function receiveHeroCommand(text) {
   targetNpc.lineSlot = -1;
 
   appendCommandResultToLog(targetNpc);
+  const wasFirstBuilder = commandSession.cursor === 0 && targetNpc.isBuildCommand;
   commandSession.cursor += 1;
   if (commandSession.cursor >= commandSession.queue.length) {
     allOrdersReceived = true;
@@ -440,6 +485,10 @@ function receiveHeroCommand(text) {
   } else {
     const next = commandSession.queue[commandSession.cursor];
     addMessage(`子${targetNpc.id} が命令を受理。次は子${next.id}`);
+    if (wasFirstBuilder && !firstBuilderAudioPaused) {
+      firstBuilderAudioPaused = true;
+      pauseMicForBuildAndResumeNextChild(true);
+    }
   }
 }
 
@@ -541,6 +590,7 @@ function resetCommandSession() {
   commandSession.queue = [];
   commandSession.cursor = 0;
   allOrdersReceived = false;
+  firstBuilderAudioPaused = false;
   resetNpcCommandStates();
 }
 
@@ -962,11 +1012,7 @@ function draw() {
   ctx.fillText(`X:${Math.floor(player.x)} / ${WORLD_W}`, 8, 50);
 
   ctx.fillText('音声デバッグ:', 8, 66);
-  const transcriptStartY = 82;
-  const lineHeight = 13;
-  for (let i = 0; i < liveTranscriptLines.length; i += 1) {
-    ctx.fillText(liveTranscriptLines[i], 8, transcriptStartY + i * lineHeight);
-  }
+  ctx.fillText(liveTranscriptLine, 8, 82);
 
   drawCommandResultPanel();
 }
