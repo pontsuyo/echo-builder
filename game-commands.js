@@ -546,7 +546,7 @@ function isBuildingCommand(text) {
     };
   }
 
-  return { isBuild: false, interpretation: 'Could not parse it as a build command.' };
+  return { isBuild: false, interpretation: "I didn't get that!" };
 }
 
 function appendCommandResultToLog(child) {
