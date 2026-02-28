@@ -1,7 +1,9 @@
 (function () {
   const micButton = document.getElementById('ask-voxtral-mic');
   const CHAT_MODEL_CANDIDATES = ['mistral-small-latest', 'mistral-small'];
-  const AUDIO_MODEL_CANDIDATES = ['voxtral-mini-latest', 'voxtral-mini', 'voxtral-small-latest', 'voxtral-small'];
+  const VOXTRAL_AUDIO_MODEL = 'voxtral-mini-latest';
+  const AUDIO_SEND_WAV = true;
+  const AUDIO_MODEL_CANDIDATES = [VOXTRAL_AUDIO_MODEL];
   const CHAT_ENDPOINT_PATH = '/v1/chat/completions';
   const AUDIO_ENDPOINT_PATH = '/v1/audio/transcriptions';
 
@@ -46,7 +48,7 @@
         path: AUDIO_ENDPOINT_PATH,
       }),
     apiKey: window.__MISTRAL_API_KEY || '',
-    model: window.__MISTRAL_AUDIO_TRANSCRIPT_MODEL || AUDIO_MODEL_CANDIDATES[0],
+    model: VOXTRAL_AUDIO_MODEL,
   };
   const ENABLE_DEBUG_LOG = Boolean(
     window.__MISTRAL_DEBUG || window.__VOXTRAL_DEBUG || false
@@ -68,11 +70,13 @@
   let heroSpeechDebounceTimer = null;
   let lastHeroSpeechSentText = '';
   let lastHeroSpeechSentAt = 0;
+  let isMicFlowSuspended = false;
   const HERO_SPEECH_MIN_LEN = 2;
   const HERO_SPEECH_IDLE_MS = 600;
   const HERO_SPEECH_COOLDOWN_MS = 700;
   const LIVE_TRANSCRIBE_DELAY_MS = 2000;
   const LIVE_TRANSCRIBE_MIN_BYTES = 14000;
+  const FINAL_TRANSCRIBE_MIN_BYTES = 16000;
   let liveTranscribeTimer = null;
   let liveTranscribeInFlight = false;
   let liveChunkQueue = [];
@@ -307,19 +311,6 @@
     }
   }
 
-  function normalizeAudioModel(model) {
-    if (!model) {
-      return 'voxtral-mini-latest';
-    }
-    if (model === 'voxtral-mini' || /^voxtral-mini-2602$/i.test(model)) {
-      return 'voxtral-mini-latest';
-    }
-    if (model === 'voxtral-small') {
-      return 'voxtral-small-latest';
-    }
-    return model;
-  }
-
   function guessAudioExtension(mimeType) {
     if (!mimeType) return 'webm';
     const t = String(mimeType).toLowerCase();
@@ -339,7 +330,7 @@
   }
 
   function getAudioModelCandidates() {
-    return uniqueFromList([AUDIO_API.model, ...AUDIO_MODEL_CANDIDATES]);
+    return uniqueFromList([VOXTRAL_AUDIO_MODEL, ...AUDIO_MODEL_CANDIDATES]);
   }
 
   function isInvalidModelError(status, detail) {
@@ -612,7 +603,7 @@
   }
 
   function requestLiveTranscription() {
-    if (!isMicActive() || !lastAudioChunk) {
+    if (!isMicActive() || isMicFlowSuspended || !lastAudioChunk) {
       return;
     }
 
@@ -620,6 +611,7 @@
     liveTranscribeTimer = setTimeout(async () => {
       liveTranscribeTimer = null;
       if (!isMicActive() || liveTranscribeInFlight || !lastAudioChunk) return;
+      if (isMicFlowSuspended) return;
 
       if (!liveChunkQueue.length || liveChunkBytes < LIVE_TRANSCRIBE_MIN_BYTES) {
         logDebug('live transcription skipped (chunk too small)', {
@@ -647,7 +639,10 @@
 
       liveTranscribeInFlight = true;
       try {
-        const text = await sendTranscriptionChunk(aggregatedBlob, { noStream: true });
+        const text = await sendTranscriptionChunk(aggregatedBlob, {
+          noStream: false,
+          minBytes: LIVE_TRANSCRIBE_MIN_BYTES,
+        });
         if (text && text.trim()) {
           appendTranscriptionText(text, true);
         }
@@ -758,13 +753,12 @@
     return { form, fileName, file };
   }
 
-  function isStreamFallbackable(status, detail) {
-    if (status !== 400) return false;
-    const text = String(detail || '').toLowerCase();
-    return text.includes('stream') || text.includes('sse') || text.includes('unsupported');
-  }
-
   async function sendTranscriptionChunk(blob, options = {}) {
+    if (isMicFlowSuspended) {
+      logDebug('audio transcription skipped (flow suspended)');
+      return '';
+    }
+
     if (!isAudioConfigReady()) {
       throw new Error('音声APIの設定がありません');
     }
@@ -772,28 +766,25 @@
       return '';
     }
 
+    const minBytes = options.minBytes ?? (options.noStream ? FINAL_TRANSCRIBE_MIN_BYTES : LIVE_TRANSCRIBE_MIN_BYTES);
+    if (blob.size < minBytes) {
+      logDebug('audio transcription skipped (too small)', {
+        reason: 'insufficient audio size',
+        size: blob.size,
+        minBytes,
+        stream: Boolean(options.noStream),
+      });
+      return '';
+    }
+
     const baseRequestId = `a-${Date.now()}-${++audioRequestSeq}`;
     const useProxy = Boolean(window.__MISTRAL_PROXY_AUDIO_URL || window.__MISTRAL_PROXY_URL);
     const models = getAudioModelCandidates();
-    const attempts = [];
-    const noStream = Boolean(options.noStream);
-    if (noStream) {
-      models.forEach((model) => {
-        attempts.push({ stream: false, model: normalizeAudioModel(model), kind: 'raw' });
-      });
-    } else {
-      models.forEach((model) => {
-        const normalized = normalizeAudioModel(model);
-        attempts.push({ stream: true, model: normalized, kind: 'raw' });
-        attempts.push({ stream: false, model: normalized, kind: 'raw' });
-      });
-    }
-
-    attempts.push({
+    const attempts = models.map((model) => ({
       stream: false,
-      model: normalizeAudioModel(models[0]),
+      model,
       kind: 'wav',
-    });
+    }));
 
     logDebug('audio transcription plan', {
       baseRequestId,
@@ -812,25 +803,27 @@
     for (let i = 0; i < attempts.length; i += 1) {
       const { stream, model, kind } = attempts[i];
       const requestId = `${baseRequestId}-${i + 1}`;
-      let wavBlob = null;
+      if (!AUDIO_SEND_WAV || kind !== 'wav') {
+        logDebug('audio sending skipped (unexpected kind)', { requestId, kind });
+        continue;
+      }
 
-      if (kind === 'wav') {
-        try {
-          wavBlob = await toWavBlob(blob);
-          if (wavBlob && wavBlob.size) {
-            const wavHead = await getBlobLeadingHex(wavBlob, 24);
-            logDebug('audio wav header inspect', {
-              requestId,
-              wavHead,
-            });
-          }
-        } catch (err) {
-          logDebug('audio wav convert failed', {
+      let wavBlob = null;
+      try {
+        wavBlob = await toWavBlob(blob);
+        if (wavBlob && wavBlob.size) {
+          const wavHead = await getBlobLeadingHex(wavBlob, 24);
+          logDebug('audio wav header inspect', {
             requestId,
-            reason: String(err && err.message ? err.message : err),
+            wavHead,
           });
-          continue;
         }
+      } catch (err) {
+        logDebug('audio wav convert failed', {
+          requestId,
+          reason: String(err && err.message ? err.message : err),
+        });
+        throw err;
       }
 
       const headers = {};
@@ -842,7 +835,7 @@
         debugHeaders.Authorization = 'Bearer ***';
       }
 
-        const { form, fileName, file } = buildAudioForm(
+      const { form, fileName, file } = buildAudioForm(
           kind === 'wav' ? wavBlob : blob,
           stream,
         chunkBase,
@@ -913,16 +906,9 @@
             requestId,
             reason: detail,
           });
-          if (kind !== 'wav') {
-            logDebug('audio will try wav fallback', { requestId });
-            if (i + 1 < attempts.length) {
-              continue;
-            }
+          if (i + 1 < attempts.length) {
+            continue;
           }
-        }
-        if (stream && isStreamFallbackable(res.status, detail)) {
-          logDebug('audio stream fallback retry', { requestId });
-          continue;
         }
         if (isInvalidModelError(res.status, detail)) {
           if (i + 1 < attempts.length) {
@@ -1014,6 +1000,11 @@
       postMessage('AI応答中は一時的にマイク開始をブロックします。');
       return;
     }
+    if (micActive) {
+      logDebug('mic start ignored (already active)');
+      return;
+    }
+    isMicFlowSuspended = false;
     logDebug('mic start requested', {
       hasMediaDevices: Boolean(navigator.mediaDevices),
       hasMediaRecorder: Boolean(window.MediaRecorder),
@@ -1087,7 +1078,9 @@
     }
   }
 
-  async function stopMicCapture() {
+  async function stopMicCapture(options = {}) {
+    const { finalize = true } = options || {};
+    isMicFlowSuspended = true;
     if (heroSpeechDebounceTimer) {
       clearTimeout(heroSpeechDebounceTimer);
       heroSpeechDebounceTimer = null;
@@ -1102,6 +1095,7 @@
       if (micActive) {
         setMicBusy(false);
       }
+      isMicFlowSuspended = !finalize;
       logDebug('mic stop ignored', {
         hasRecorder: Boolean(mediaRecorder),
         state: mediaRecorder ? mediaRecorder.state : 'none',
@@ -1141,37 +1135,44 @@
           type: lastMicMimeType || mediaRecorder?.mimeType || 'audio/webm',
         });
 
-    if (finalBlob && finalBlob.size > 0) {
-      liveChunkQueue = [];
-      liveChunkBytes = 0;
-      const headHex = await getBlobLeadingHex(finalBlob);
-      logDebug('final audio blob ready', {
-        size: finalBlob.size,
-        type: finalBlob.type,
-        chunks: recordedChunks.length,
-        headHex,
-      });
-      try {
-        const text = await sendTranscriptionChunk(finalBlob, { noStream: true });
-        if (text && text.trim()) {
-          transcriptionText = text;
-        } else {
-          postMessage('音声文字起こし: 0文字（文字起こしできませんでした）');
+    const finalBytes = finalBlob && finalBlob.size ? finalBlob.size : 0;
+    if (finalize) {
+      if (finalBytes >= FINAL_TRANSCRIBE_MIN_BYTES) {
+        liveChunkQueue = [];
+        liveChunkBytes = 0;
+        const headHex = await getBlobLeadingHex(finalBlob);
+        logDebug('final audio blob ready', {
+          size: finalBlob.size,
+          type: finalBlob.type,
+          chunks: recordedChunks.length,
+          headHex,
+        });
+        try {
+          const text = await sendTranscriptionChunk(finalBlob, { noStream: true });
+          if (text && text.trim()) {
+            transcriptionText = text;
+          } else {
+            postMessage('音声文字起こし: 0文字（文字起こしできませんでした）');
+          }
+        } catch (err) {
+          console.error('[Voxtral] final audio request failed', err);
+          postMessage(`音声再送信失敗: ${String(err.message || err)}`);
         }
-      } catch (err) {
-        console.error('[Voxtral] final audio request failed', err);
-        postMessage(`音声再送信失敗: ${String(err.message || err)}`);
+      } else {
+        logDebug('final audio blob missing', {
+          chunks: recordedChunks.length,
+          lastChunk: !!lastAudioChunk,
+        });
+        const fallbackMessage =
+          finalBytes > 0
+            ? `音声文字起こし: 0文字（録音データが短すぎます: ${finalBytes} bytes）`
+            : '音声文字起こし: 0文字（録音データなし）';
+        postMessage(fallbackMessage);
       }
-    } else {
-      logDebug('final audio blob missing', {
-        chunks: recordedChunks.length,
-        lastChunk: !!lastAudioChunk,
-      });
-      postMessage('音声文字起こし: 0文字（録音データなし）');
     }
-
+    isMicFlowSuspended = finalize ? false : true;
     setMicBusy(false);
-    if (transcriptionText && transcriptionText.trim()) {
+    if (finalize && transcriptionText && transcriptionText.trim()) {
       const spokenText = transcriptionText.trim();
       notifyHeroSpeech(spokenText);
       postMessage(spokenText);
@@ -1179,7 +1180,7 @@
         length: transcriptionText.length,
         text: transcriptionText,
       });
-    } else {
+    } else if (finalize) {
       postMessage('音声文字起こし: 0文字');
     }
   }
@@ -1220,6 +1221,8 @@
 
   window.startVoxtralMic = startMicCapture;
   window.stopVoxtralMic = stopMicCapture;
+  window.pauseVoxtralMic = () => stopMicCapture({ finalize: false });
+  window.resumeVoxtralMic = () => startMicCapture();
   window.setupVoxtralIntegration = setupIntegration;
 
   if (micButton) {
@@ -1243,4 +1246,92 @@
       }
     }
   });
+
+  // デバッグ用: テストボタンのイベントリスナー
+  const testRedRoofButton = document.getElementById('test-red-roof');
+  const testTwoWindowsButton = document.getElementById('test-two-windows');
+
+  if (testRedRoofButton) {
+    testRedRoofButton.addEventListener('click', () => {
+      sendTestAudio('wav/build_a_red_roof.wav');
+    });
+  }
+
+  if (testTwoWindowsButton) {
+    testTwoWindowsButton.addEventListener('click', () => {
+      sendTestAudio('wav/put_two_windows.wav');
+    });
+  }
+
+  // テスト用オーディオファイル送信関数
+  async function sendTestAudio(filePath) {
+    if (isRequesting) {
+      logDebug('前のリクエストが完了していません');
+      return;
+    }
+
+    try {
+      isRequesting = true;
+      logDebug(`テストオーディオ送信開始: ${filePath}`);
+
+      // ファイルをfetchで読み込む
+      const response = await fetch(filePath);
+      if (!response.ok) {
+        throw new Error(`ファイル読み込み失敗: ${response.status} - ${filePath}`);
+      }
+
+      const audioBlob = await response.blob();
+      logDebug(`オーディオファイル読み込み完了: ${audioBlob.size} bytes, type: ${audioBlob.type}`);
+
+      // オーディオファイルを送信
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'test_audio.wav');
+      formData.append('model', AUDIO_API.model);
+
+      logDebug(`送信先: ${AUDIO_API.endpoint}`);
+      logDebug(`モデル: ${AUDIO_API.model}`);
+
+      const audioResponse = await fetch(AUDIO_API.endpoint, {
+        method: 'POST',
+        body: formData,
+      });
+
+      logDebug(`レスポンスステータス: ${audioResponse.status}`);
+
+      if (!audioResponse.ok) {
+        const errorText = await audioResponse.text();
+        throw new Error(`APIリクエスト失敗: ${audioResponse.status} - ${errorText}`);
+      }
+
+      const result = await audioResponse.json();
+      logDebug('音声認識結果:', result);
+
+      // 結果を表示
+      if (result.text) {
+        transcriptionText = result.text;
+        if (typeof setLiveTranscript === 'function') {
+          setLiveTranscript(transcriptionText);
+        }
+        logDebug(`認識テキスト: ${transcriptionText}`);
+
+        // ゲームエンジンにテキストを渡す（マイク入力時と同じ処理）
+        if (typeof gameApi === 'function') {
+          logDebug('ゲームエンジンにテキストを渡します');
+          gameApi({
+            type: 'voice',
+            text: transcriptionText,
+            isFinal: true,
+          });
+        } else {
+          logDebug('gameApiが見つかりません');
+        }
+      } else {
+        logDebug('認識テキストが空です');
+      }
+    } catch (error) {
+      logDebug('テストオーディオ送信エラー:', error);
+    } finally {
+      isRequesting = false;
+    }
+  }
 })();

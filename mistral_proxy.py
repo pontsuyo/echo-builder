@@ -212,6 +212,11 @@ def proxy_request(path: str) -> Response:
         )
 
     if content_type and "application/json" in content_type:
+        logger.debug(
+            "UPSTREAM id=%s response_body=%s",
+            g.request_id,
+            _short(upstream.text),
+        )
         return add_cors_headers(
             Response(upstream.text, status=upstream.status_code, content_type=content_type)
         )
