@@ -8,9 +8,13 @@ from flask import g
 
 import requests
 from flask import Flask, Response, jsonify, request
+from dotenv import load_dotenv
 
 
 app = Flask(__name__)
+
+# Load environment variables from .env file
+load_dotenv()
 
 LOG_LEVEL = os.getenv("MISTRAL_PROXY_LOG_LEVEL", "DEBUG").upper()
 LOG_FORMAT = "[%(asctime)s] %(levelname)s %(name)s: %(message)s"
