@@ -439,7 +439,6 @@ function draw() {
   // HUD
   ctx.fillStyle = '#e9f2ff';
   ctx.font = '14px "Courier New", monospace';
-  ctx.fillText(`NPC:${npcs.length}  HP:${player.lives}`, 8, 18);
   ctx.fillText(message, 8, 34);
   ctx.fillText(`X:${Math.floor(player.x)} / ${WORLD_W}`, 8, 50);
 
