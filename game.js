@@ -377,20 +377,20 @@ function drawGroundDecorations() {
   }
 }
 
-function drawDotBody(x, y, base, options = {}) {
-  const w = base.w || 12;
-  const h = base.h || 12;
-  const isHero = options.isHero === true;
+function drawDotBody(x, y, sprite = {}) {
+  const w = sprite.w || 12;
+  const h = sprite.h || 12;
+  const isHero = sprite.isHero === true;
   const heroColor = '#00ff00';
   const heroEye = '#003b14';
-  const enemyColor = options.color || '#ff3d3d';
+  const enemyColor = sprite.color || '#ff3d3d';
 
   ctx.fillStyle = isHero ? heroColor : enemyColor;
   ctx.fillRect(x, y, w, h);
 
   if (isHero) {
     ctx.fillStyle = heroEye;
-    ctx.fillRect(x + (options.facing >= 0 ? w - 3 : 3), y + 4, 2, 2);
+    ctx.fillRect(x + (sprite.facing >= 0 ? w - 3 : 3), y + 4, 2, 2);
   } else {
     // ドット風: 2x2で色を変える
     ctx.fillStyle = '#ff9a9a';
@@ -405,23 +405,11 @@ function draw() {
   drawGround();
   drawHouse();
 
-  // NPCs (draw behind player if smaller y) to get depth-like ordering
-  const actors = [...npcs, { ...player, isHero: true }].sort((a, b) => a.y + a.h - (b.y + b.h));
-  for (const e of actors) {
+  // NPCを先に描画し、主人公は最後に描画して必ず見えるようにする
+  const sortedNpcs = [...npcs].sort((a, b) => a.y + a.h - (b.y + b.h));
+  for (const e of sortedNpcs) {
     const sx = e.x - cameraX;
     if (sx + 80 < 0 || sx - 80 > W) continue;
-
-    if (e.isHero) {
-      drawDotBody(sx, e.y, {
-        w: player.w,
-        h: player.h,
-        facing: player.facing,
-        walkPhase: player.walkPhase,
-        type: 'human',
-        isHero: true,
-      });
-      continue;
-    }
 
     drawDotBody(sx, e.y, {
       w: e.w,
@@ -435,6 +423,19 @@ function draw() {
       outfit: e.outfit,
       color: '#ff3d3d',
       isHero: false,
+    });
+  }
+
+  // Hero (always on top)
+  const px = player.x - cameraX;
+  if (px + 80 >= 0 && px - 80 <= W) {
+    drawDotBody(px, player.y, {
+      w: player.w,
+      h: player.h,
+      facing: player.facing,
+      walkPhase: player.walkPhase,
+      type: 'human',
+      isHero: true,
     });
   }
 
