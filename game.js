@@ -145,6 +145,20 @@
         message = text;
       }
 
+      if (typeof window.setupVoxtralIntegration === 'function') {
+        window.setupVoxtralIntegration({
+          getState: () => ({
+            playerX: Math.floor(player.x),
+            playerY: Math.floor(player.y),
+            lives: player.lives,
+            score: player.score,
+            clear,
+            enemyCount: enemies.length,
+          }),
+          setMessage: addMessage,
+        });
+      }
+
       function handleCollisions(dt) {
         player.onGround = false;
 
@@ -366,6 +380,7 @@
           e.preventDefault();
           resetGame();
         }
+
       });
 
       window.addEventListener('keyup', (e) => {
