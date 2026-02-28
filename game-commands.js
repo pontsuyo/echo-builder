@@ -264,7 +264,7 @@ function getFrontOrderedNpcs() {
   
   // 並び順が変更されたときに点滅を再開
   if (ordered.length > 0 && typeof startBlinking === 'function') {
-    startBlinking();
+    startBlinking(ordered[0].id);
   }
   
   return ordered;
@@ -459,8 +459,8 @@ function startCommandLineup(options = {}) {
   addMessage('作業を開始します。');
   
   // 先頭の子供を点滅させる
-  if (typeof startBlinking === 'function') {
-    startBlinking();
+  if (typeof startBlinking === 'function' && ordered.length > 0) {
+    startBlinking(ordered[0].id);
   }
 }
 

@@ -423,11 +423,13 @@ function drawDotBody(x, y, sprite = {}, opacity = 1.0) {
 let blinkTimer = null;
 let isBlinking = false;
 let blinkCounter = 0;
+let blinkingNpcId = null; // 点滅対象のNPC ID
 
-function startBlinking() {
+function startBlinking(npcId = null) {
   if (isBlinking) return;
   isBlinking = true;
   blinkCounter = 0;
+  blinkingNpcId = npcId; // 点滅対象のNPC IDを設定
   blinkTimer = setInterval(() => {
     blinkCounter++;
   }, 500);
@@ -440,6 +442,7 @@ function stopBlinking() {
   }
   isBlinking = false;
   blinkCounter = 0;
+  blinkingNpcId = null;
 }
 
 function draw() {
@@ -454,10 +457,9 @@ function draw() {
     const sx = e.x - cameraX;
     if (sx + 80 < 0 || sx - 80 > W) continue;
 
-    // 先頭の子供を点滅表示
-    const isFirstChild = npcs.indexOf(e) === 0;
+    // 点滅対象の子供を表示
     let opacity = 1.0;
-    if (isFirstChild && isBlinking) {
+    if (isBlinking && e.id === blinkingNpcId) {
       opacity = blinkCounter % 2 === 0 ? 1.0 : 0.5;
     }
 
