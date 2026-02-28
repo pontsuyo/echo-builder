@@ -27,9 +27,9 @@
          │
          ▼
 ┌───────────────────────────────────────────────┐
-│ APIプロキシ                                      │
+│ 目標選定/採点層                              │
 ├───────────────────────────────────────────────┤
-│ Mistral Voxtral API                         │
+│ GoalPattern / GoalHint / ScoreEvaluator         │
 └───────────────────────────────────────────────┘
 
 （※ElevenLabs APIは現時点で未接続。将来 p1 で検討）
@@ -71,18 +71,21 @@
 
 #### 目的
 - 転写結果を「建築指示」「非建築指示」に分類。
-- 対象部位（屋根/壁/窓/扉/煙突/建築全体）と数量（数詞）を抽出。
+- 対象部位（屋根/壁/窓/扉/煙突/柱/建築全体）と数量（数詞）を抽出。
 
 #### 機能
 - 正規化（小文字化・句読点除去・連続空白圧縮）
 - 数量抽出（アラビア数字、日本語数字、英語数詞）
 - 部位一致ルール（`BUILD_COMMAND_RULES` / `BUILD_KEYWORDS`）で判定
+- 色・屋根形状抽出（`red/blue/green` 等と `triangle/flat/round`）
 - 判定結果を次ターンの NPC へ割り当て
 
 #### 判定出力
 - `isBuild: boolean`
 - `preferredPartType: 'wall'|'roof'|'chimney'|'door'|'window'|'house'|'floor'|'fence'|'column'|null`
 - `buildQuantity: number`
+- `requestedColor: string|null`
+- `requestedRoofShape: 'round'|'triangle'|'flat'|null`
 - `interpretation: string`（UI表示用）
 
 ### 3.3 建築実行エンジン（p0）
@@ -102,19 +105,46 @@
 - 家パーツ: `houseParts[]`（`type`, `built`, `builtBy`, `assignedTo`）
 - セッション: `commandSession.active`, `commandSession.queue`, `commandSession.cursor`
 
-### 3.4 音声合成モジュール（p1）
+### 3.4 Goal Pattern 管理（p0）
+
+#### 目的
+- 開始時（ゲーム開始、`R` リセット）に目標テンプレートを1件選定し、同一セッション内で維持する。
+
+#### 機能
+- `GOAL_PATTERNS`（3件以上）定義。
+- `selectRandomGoal(seed?)` により1件を選定。
+- 選定結果を `activeGoal` として状態保持。
+- 選定イベント `goal:selected` を発火。
+
+### 3.5 Goal Hint Renderer（p0）
+
+#### 目的
+- ゴールテンプレートの期待形を画面上に可視化。
+
+#### 機能
+- 目標の種類（屋根、柱、ドア、色、位置）を UI 上で説明。
+- ゲームプレイ中は薄い透過表示（線画 or ガイド）で重複しないよう描画。
+- 目標変更は `start/reset` のみ許可（途中で更新しない）。
+
+### 3.6 Score Evaluator（p0）
+
+#### 目的
+- 建築完了時（`houseRevealDone`）に目標一致度を1回だけ算出。
+
+#### 機能
+- `evaluateGoalScore(activeGoal, houseParts, destroyedParts)` 実行。
+- ルール別に数量一致、色一致、位置一致を比率加点。
+- 目標外追加を `-5`、破壊は `destroyedParts` ベースで `-10`。
+- スコア結果（`score` と `breakdown`）を HUD/ログへ渡す。
+- `goal:score.finalized` イベントを発火。
+
+### 3.7 音声合成モジュール（p1）
 
 - 現行は未実装。
 - 想定は「建築完了時の復唱音声再生」を追加する設計。
 - 検討対象: ElevenLabs 連携の有無と、音声生成コスト/待ち時間の扱い。
 
-### 3.5 スコアリング（p1）
-
-- 現行は未実装。
-- 現状はコマンド成立/不成立と建築結果ログのみを扱う。
-- 指示一致度の計量表示を将来追加するかは別途判断。
-
-### 3.6 UI/UXモジュール（p0）
+### 3.8 UI/UXモジュール（p0）
 
 #### 画面構成
 - Canvas本体（ゲーム表示）
@@ -124,12 +154,14 @@
   - 開発用テストボタン（3点）
 - 音声入力履歴（HUD）
 - コマンド結果パネル
+- 目標ヒント表示（開始時〜建築完了まで）
 
 #### コマンド結果パネル（表示時のみ）
 - 子どもID
 - 受信文字列（聞取）
 - 解析結果（interpreted）
 - 数量
+- スコア結果（score modeでは最終表示）
 
 #### コントロール
 - 音声入力トリガ:
@@ -193,7 +225,7 @@
   houseParts: [
     {
       id,
-      type, // wall | roof | chimney | door | window
+      type, // wall | roof | chimney | door | window | column
       x,
       y,
       w,
@@ -201,7 +233,10 @@
       built,
       builtBy,
       assignedTo,
-      isDynamic
+      isDynamic,
+      colorHex,
+      roofShape,
+      destroyed,
     }
   ],
 
@@ -221,12 +256,21 @@
   ],
 
   commandLine: {
-    spacing, queueSpeed, returnSpeed, workSpeed
+    spacing,
+    queueSpeed,
+    returnSpeed,
+    workSpeed
   },
 
   childInterpretations: [
     { childId, interpretation }
   ],
+
+  activeGoal,
+  lastGoalId,
+  goalScore,
+  goalScoreBreakdown,
+  scoreVisible,
 
   ui: {
     showCommandResults
@@ -250,6 +294,8 @@
 | `command:session.assign` | `{ childId, isBuild, interpreted, quantity, preferredPartType }` | 子どもにコマンドを割当時 |
 | `command:session.next` | `{ nextChildId }` | 次の子どもへコマンド待ち時 |
 | `command:build.complete` | `{ childId, builtCount, partIds }` | 部位が建築完了時 |
+| `goal:selected` | `{ goalId, version, selectedAt }` | ゲーム開始・リセット時にゴールを選定時 |
+| `goal:score.finalized` | `{ goalId, score, breakdown, extraPenalty, idealMatchRate }` | スコア確定時 |
 | `game:reset` | `{ reason }` | リセット時 |
 
 ## 5. API設計
@@ -266,14 +312,41 @@
 - 転写失敗時はフォールバック（再試行/代替 MIME）を実施
 - 成功した文字列をゲームのイベントとして再注入
 
-### 5.2 ElevenLabsラッパー（p1）
+### 5.2 Goal/Score API（p0）
+
+#### 目的
+- 開始時ランダムゴール選定と、建築完了時の一致度評価を標準インターフェース化。
+
+#### 候補 API
+- `selectRandomGoal(seed?)` → `activeGoal`
+- `evaluateGoalScore(activeGoal, houseParts, optionalDestroyedParts)` → `{ score, breakdown }`
+- `getActiveGoalForUi()` → `activeGoal`
+
+### 5.3 ElevenLabsラッパー（p1）
 
 - 現行実装なし。
 - 音声復唱を追加する際の拡張ポイントとして将来定義。
 
-## 6. エラーハンドリング
+## 6. スコア計算ロジック
 
-### 6.1 種類と対処
+### 6.1 ルール
+- `GoalPattern` の各 `parts` を照合し、以下を加点。
+  - `countMatchScore = min(doneCount, requiredCount) / requiredCount * countWeight`
+  - `colorMatchScore = matchedColorCount / targetCount * colorWeight`
+  - `positionMatchScore = clamp(1 - abs(dx)/tolerancePx, 0, 1) * positionWeight`
+- 付加点は `base` を起点に加算。
+- ペナルティ:
+  - `extraPenalty = -5 * extraCount`
+  - `destroyPenalty = -10 * destroyedCount`（現時点で破壊イベント未実装のため 0）
+- `clamp` で `0..100` に収束。
+
+### 6.2 `column` と位置
+- 柱は `partType: column` として扱い、まずは本数ベース（count）で評価。
+- ドア中央は `positionRule: x-center` として許容誤差（既定 8px）で減衰評価。
+
+## 7. エラーハンドリング
+
+### 7.1 種類と対処
 
 - マイク権限拒否  
   - メッセージ表示、再許可の導線を示す
@@ -286,27 +359,43 @@
 - 建築対象不足  
   - 指示数と利用可能部位不足を考慮し `isBuildCommand=false` にフォールバック
 
-### 6.2 フォールバックポリシー
+### 7.2 フォールバックポリシー
 - 文字起こしの未確定値は画面表示のみ維持し、確定時にコマンド登録。
 - 非建築として判定された文字列でもゲーム進行は停止させず継続。
 - API連携失敗時はゲーム全体停止はしない。
 
-## 7. テスト設計
+## 7.3 テスト設計
 
-### 7.1 機能テスト（現行）
+### 7.3.1 機能テスト（現行）
 - 音声セッション開始/停止
 - ライブ転写文字列の反映
 - 建築指示の識別
 - キュー順（子どもの前方順）での割当
 - 建築完了後の結果ログ表示
 - リセット時の状態初期化
+- ゴール選定（start/reset）とヒント表示
 
-### 7.2 テストデータ（p0）
+### 7.3.2 スコアシナリオ（p0）
+- 3パターン以上のうち少なくとも1件が開始時に選択されること
+- 完全一致時に高得点帯へ入ること（高点）
+- 1〜2項目未達で中間点が出ること
+- 目標外追加1つで `-5` が反映
+- ドア中央判定が減点へ反映（許容誤差 8px）
+- 破壊未実装時は `destroyPenalty` が 0 と明記されること
+
+### 7.4 検証サンプル（p0）
 
 ```javascript
 const voiceSamples = [
   'add 2 windows',
   'put a red roof',
+];
+```
+
+```javascript
+const goalScoreSamples = [
+  { goalId: 'goal-red-roof-3columns-door', doneCount: { roof: 1, column: 3, door: 1 }, extra: 0 },
+  { goalId: 'goal-blue-flat-roof-window2', doneCount: { roof: 1, window: 1 }, extra: 1 },
 ];
 ```
 
@@ -339,6 +428,6 @@ const voiceSamples = [
 **文書管理**
 - 作成日: 2024-02-20
 - 最終更新日: 2026-03-01
-- バージョン: 1.1
+- バージョン: 1.2
 - 状態: ドラフト
 - 参照文書: `docs/product-requirements.md`
