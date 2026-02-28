@@ -11,8 +11,8 @@ const WORLD_W = 3200;
 const FLOOR_Y = 250;
 const PLAYER_SPEED = 95;
 const FINISH_X = WORLD_W - 120;
-const HOUSE_REVEAL_SPEED = 520;
-const HOUSE_REVEAL_TARGET_OFFSET = 0.45;
+const HOUSE_REVEAL_SPEED = 1040;
+const HOUSE_REVEAL_TARGET_OFFSET = 0.30;
 
 const keys = new Set();
 
