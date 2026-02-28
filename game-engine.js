@@ -97,7 +97,6 @@ function updateNpcs(dt) {
           const partName = getHousePartLabel(builtPart.type);
           addMessage(`子${npc.id} が家の${partName}を設置しました。`);
         }
-        // ROAM状態を使用せず、RETURN_HOME状態を維持
         // 家の横に留まるため、minXとmaxXを現在位置付近に設定
         npc.minX = npc.x - 10;
         npc.maxX = npc.x + 10;
@@ -106,6 +105,13 @@ function updateNpcs(dt) {
         npc.commandMarkUntil = 0;
         npc.isBuildCommand = false;
         npc.assignedBuildPartId = null;
+        // 一度建築したら戻ってくる可能性は0なので、状態をCOMPLETEDに遷移させる
+        npc.commandState = NPC_COMMAND_STATES.COMPLETED;
+        npc.state = NPC_ACTIVITY_STATES.IDLE; // 到着後にアイドル状態に設定
+        npc.vx = 0; // 移動を停止
+        npc.dir = 0; // 移動方向をリセット
+        npc.walkTimer = 0; // 歩行タイマーをリセット
+        npc.idleTimer = 0; // アイドルタイマーをリセット
       }
       continue;
     }

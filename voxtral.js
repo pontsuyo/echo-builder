@@ -1261,6 +1261,7 @@
   // デバッグ用: テストボタンのイベントリスナー
   const testRedRoofButton = document.getElementById('test-red-roof');
   const testTwoWindowsButton = document.getElementById('test-two-windows');
+  const testTwoDotsButton = document.getElementById('test-two-dots');
 
   if (testRedRoofButton) {
     testRedRoofButton.addEventListener('click', () => {
@@ -1271,6 +1272,12 @@
   if (testTwoWindowsButton) {
     testTwoWindowsButton.addEventListener('click', () => {
       sendTestAudio('wav/put_two_windows.wav');
+    });
+  }
+
+  if (testTwoDotsButton) {
+    testTwoDotsButton.addEventListener('click', () => {
+      sendTestAudio('wav/there should be two .mp3');
     });
   }
 

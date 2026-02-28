@@ -99,6 +99,7 @@ const COMMAND_LINE = {
 const NPC_COMMAND_STATES = {
   QUEUED: 'queued',
   RETURN_HOME: 'returnHome',
+  COMPLETED: 'completed',
   ROAM: 'roam',
 };
 
