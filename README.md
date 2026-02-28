@@ -28,7 +28,6 @@
 
 ### 本番環境
 
-- `index.html` をブラウザで直接開く（CORS制限あり）
 - プロキシサーバーをデプロイ
 
 ## 操作
@@ -99,13 +98,7 @@ python3 mistral_proxy.py
 - `MISTRAL_PROXY_PORT`（任意、既定: `8001`）
 - `MISTRAL_PROXY_CORS_ORIGIN`（任意、既定: `*`）
 
-### 2) 開発検証: 直書きキー
-```html
-<script>
-  window.__MISTRAL_API_KEY = 'sk-...';
-  window.__MISTRAL_API_URL = 'https://api.mistral.ai/v1/chat/completions';
-</script>
-```
+
 
 ### 3) ローカルファイルで分離（管理しやすい）
 - `index.html` で先に `local-mistral-config.js` を読み込む
