@@ -6,6 +6,9 @@ function resetGame() {
   resetCommandSession();
   resetCommandResultLog();
 
+  // 点滅を停止
+  stopBlinking();
+
   // 初期状態で子供たちを整列させる
   const ordered = getFrontOrderedNpcs();
   for (let i = 0; i < ordered.length; i += 1) {
@@ -413,6 +416,29 @@ function drawDotBody(x, y, sprite = {}) {
   }
 }
 
+// 点滅状態管理
+let blinkTimer = null;
+let isBlinking = false;
+let blinkCounter = 0;
+
+function startBlinking() {
+  if (isBlinking) return;
+  isBlinking = true;
+  blinkCounter = 0;
+  blinkTimer = setInterval(() => {
+    blinkCounter++;
+  }, 500);
+}
+
+function stopBlinking() {
+  if (blinkTimer) {
+    clearInterval(blinkTimer);
+    blinkTimer = null;
+  }
+  isBlinking = false;
+  blinkCounter = 0;
+}
+
 function draw() {
   ctx.imageSmoothingEnabled = false;
   drawSky();
@@ -424,6 +450,13 @@ function draw() {
   for (const e of sortedNpcs) {
     const sx = e.x - cameraX;
     if (sx + 80 < 0 || sx - 80 > W) continue;
+
+    // 先頭の子供を点滅表示
+    const isFirstChild = npcs.indexOf(e) === 0;
+    let opacity = 1.0;
+    if (isFirstChild && isBlinking) {
+      opacity = blinkCounter % 2 === 0 ? 1.0 : 0.5;
+    }
 
     drawDotBody(sx, e.y, {
       w: e.w,
@@ -459,7 +492,7 @@ function draw() {
         const balloonY = e.y + e.h + 4 + (e.id * 20);
         
         ctx.fillStyle = '#ffffff';
-        ctx.globalAlpha = 0.8;
+        ctx.globalAlpha = 0.8 * opacity;
         ctx.fillRect(balloonX, balloonY, bgWidth, bgHeight);
         ctx.globalAlpha = 1.0;
         
@@ -481,7 +514,7 @@ function draw() {
         ctx.lineTo(tailX + tailWidth / 2, balloonY);
         ctx.closePath();
         ctx.fillStyle = '#ffffff';
-        ctx.globalAlpha = 0.8;
+        ctx.globalAlpha = 0.8 * opacity;
         ctx.fill();
         ctx.globalAlpha = 1.0;
         ctx.stroke();

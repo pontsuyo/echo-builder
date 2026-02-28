@@ -259,7 +259,15 @@ function getFrontOrderedNpcs() {
   const distanceSort = (a, b) => Math.abs(a.x - player.x) - Math.abs(b.x - player.x);
   front.sort(distanceSort);
   back.sort(distanceSort);
-  return front.concat(back);
+  
+  const ordered = front.concat(back);
+  
+  // 並び順が変更されたときに点滅を再開
+  if (ordered.length > 0 && typeof startBlinking === 'function') {
+    startBlinking();
+  }
+  
+  return ordered;
 }
 
 function getCommandLineX(slot) {
@@ -449,6 +457,11 @@ function startCommandLineup(options = {}) {
 
   updateCommandButtons();
   addMessage('作業を開始します。');
+  
+  // 先頭の子供を点滅させる
+  if (typeof startBlinking === 'function') {
+    startBlinking();
+  }
 }
 
 function receiveHeroCommand(text) {
@@ -507,6 +520,11 @@ function receiveHeroCommand(text) {
     allOrdersReceived = true;
     commandSession.active = false;
     addMessage(`作業完了: ${targetNpc.id} が最後の子です。`);
+    
+    // 点滅を停止
+    if (typeof stopBlinking === 'function') {
+      stopBlinking();
+    }
   } else {
     const next = commandSession.queue[commandSession.cursor];
     addMessage(`子${targetNpc.id} が作業を受理。次は子${next.id}`);
