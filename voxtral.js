@@ -1315,13 +1315,9 @@
         logDebug(`認識テキスト: ${transcriptionText}`);
 
         // ゲームエンジンにテキストを渡す（マイク入力時と同じ処理）
-        if (typeof gameApi === 'function') {
+        if (gameApi && typeof gameApi.onHeroSpeech === 'function') {
           logDebug('ゲームエンジンにテキストを渡します');
-          gameApi({
-            type: 'voice',
-            text: transcriptionText,
-            isFinal: true,
-          });
+          gameApi.onHeroSpeech(transcriptionText);
         } else {
           logDebug('gameApiが見つかりません');
         }

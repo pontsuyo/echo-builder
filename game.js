@@ -351,18 +351,30 @@ function isBuildingCommand(text) {
 
   const normalized = raw
     .replace(/[。、!！?？,、]/g, ' ')
+    .replace(/[."'(){}\[\],!?]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+  const words = normalized.match(/[a-z0-9]+/g) || [];
+  const wordSet = new Set(words);
+  const hasWord = (w) => wordSet.has(w);
+  const hasAnyWord = (arr) => arr.some((w) => hasWord(w));
 
   const buildRules = [
-    { re: /壁|せき|塀|かき|かけ|かぎ/, label: '壁/塀', partType: 'wall' },
-    { re: /屋根|屋たて|屋根を|屋根を?作|天井/, label: '屋根', partType: 'roof' },
-    { re: /床|床板|土台/, label: '床', partType: 'wall' },
-    { re: /煙突|煙だ|煙突/, label: '煙突', partType: 'chimney' },
-    { re: /門|とびら|出入口|入口/, label: '門', partType: 'door' },
-    { re: /窓|まど|ガラス/, label: '窓', partType: 'window' },
-    { re: /柱|たて|支柱/, label: '柱', partType: 'wall' },
-    { re: /家|建築|建て|建てて|設置|置いて|置く|作って|作成/, label: '建築全般' },
+    { re: /壁|せき|塀|かき|かけ|かぎ|wall|walls|fence/, label: '壁/塀', partType: 'wall' },
+    {
+      re: /屋根|屋たて|屋根を|屋根を?作|天井|\broof\b|\broofs\b|\broofing\b/,
+      label: '屋根',
+      partType: 'roof',
+    },
+    { re: /床|床板|土台|floor|floors|foundation|base/, label: '床', partType: 'wall' },
+    { re: /煙突|煙だ|煙突|chimney|smokestack/, label: '煙突', partType: 'chimney' },
+    { re: /門|とびら|出入口|入口|door|doors|entrance/, label: '門', partType: 'door' },
+    { re: /窓|まど|ガラス|window|windows|glass/, label: '窓', partType: 'window' },
+    { re: /柱|たて|支柱|column|columns|pillar|pillars/, label: '柱', partType: 'wall' },
+    {
+      re: /家|建築|建て|建てて|設置|置いて|置く|作って|作成|house|home|build|building|construct|create|add|place/,
+      label: '建築全般',
+    },
   ];
 
   for (const rule of buildRules) {
@@ -373,6 +385,37 @@ function isBuildingCommand(text) {
         preferredPartType: rule.partType || null,
       };
     }
+  }
+
+  const hasBuildVerb = hasAnyWord(['build', 'building', 'builds', 'construct', 'constructs', 'create', 'created', 'add', 'adding', 'place', 'placed', 'make', 'made']);
+  const hasRoof = hasAnyWord(['roof', 'roofs', 'roofing']);
+  const hasWall = hasAnyWord(['wall', 'walls', 'fence', 'fences', 'foundation', 'floor', 'floors', 'ground', 'base']);
+  const hasChimney = hasAnyWord(['chimney', 'smokestack']);
+  const hasDoor = hasAnyWord(['door', 'doors', 'entrance']);
+  const hasWindow = hasAnyWord(['window', 'windows', 'glass']);
+  const hasHouse = hasAnyWord(['house', 'home']);
+
+  if (hasBuildVerb) {
+    if (hasRoof) {
+      return { isBuild: true, interpretation: '建築指示: 屋根', preferredPartType: 'roof' };
+    }
+    if (hasWall) {
+      return { isBuild: true, interpretation: '建築指示: 壁/塀', preferredPartType: 'wall' };
+    }
+    if (hasChimney) {
+      return { isBuild: true, interpretation: '建築指示: 煙突', preferredPartType: 'chimney' };
+    }
+    if (hasDoor) {
+      return { isBuild: true, interpretation: '建築指示: 門', preferredPartType: 'door' };
+    }
+    if (hasWindow) {
+      return { isBuild: true, interpretation: '建築指示: 窓', preferredPartType: 'window' };
+    }
+    if (hasHouse) {
+      return { isBuild: true, interpretation: '建築全般', preferredPartType: null };
+    }
+
+    return { isBuild: true, interpretation: '建築指示として判定しました', preferredPartType: null };
   }
 
   return { isBuild: false, interpretation: '建築指示として判定できませんでした' };
