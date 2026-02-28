@@ -450,6 +450,10 @@ function stopBlinking() {
   blinkingNpcId = null;
 }
 
+// グローバル関数としてエクスポート
+window.startBlinking = startBlinking;
+window.stopBlinking = stopBlinking;
+
 // QUEUED状態の子供のうち、最も先頭にいる子供を返す
 function getFirstQueuedChild() {
   if (npcs.length === 0) return null;
@@ -467,6 +471,9 @@ function getFirstQueuedChild() {
     return projected < closestProjected ? npc : closest;
   });
 }
+
+// グローバル関数としてエクスポート
+window.getFirstQueuedChild = getFirstQueuedChild;
 
 function draw() {
   ctx.imageSmoothingEnabled = false;

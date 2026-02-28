@@ -454,10 +454,10 @@ function startCommandLineup(options = {}) {
   addMessage('作業を開始します。');
   
   // 先頭の子供を点滅させる
-  if (typeof getFirstQueuedChild === 'function' && typeof startBlinking === 'function') {
-    const firstQueued = getFirstQueuedChild();
+  if (typeof window.getFirstQueuedChild === 'function' && typeof window.startBlinking === 'function') {
+    const firstQueued = window.getFirstQueuedChild();
     if (firstQueued) {
-      startBlinking(firstQueued.id);
+      window.startBlinking(firstQueued.id);
     }
   }
 }
@@ -512,10 +512,10 @@ function receiveHeroCommand(text) {
   }
   
   // 点滅対象を更新（RETURN_HOMEになった子供の次にQUEUEDの子供を点滅対象にする）
-  if (typeof getFirstQueuedChild === 'function' && typeof startBlinking === 'function') {
-    const nextQueued = getFirstQueuedChild();
+  if (typeof window.getFirstQueuedChild === 'function' && typeof window.startBlinking === 'function') {
+    const nextQueued = window.getFirstQueuedChild();
     if (nextQueued) {
-      startBlinking(nextQueued.id);
+      window.startBlinking(nextQueued.id);
     }
   }
 
