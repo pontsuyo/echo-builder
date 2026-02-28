@@ -83,6 +83,12 @@
   let liveChunkBytes = 0;
   const isMicActive = () => micActive;
 
+  function notifyHeroListening(active) {
+    if (gameApi && typeof gameApi.setHeroListening === 'function') {
+      gameApi.setHeroListening(active);
+    }
+  }
+
   const micMimeTypes = [
     'audio/webm;codecs=opus',
     'audio/webm',
@@ -1040,6 +1046,7 @@
       lastAudioChunk = null;
       postMessage('音声入力を開始しました。しゃべるとリアルタイムで文字起こしします。');
       setMicBusy(true);
+      notifyHeroListening(true);
 
       mediaRecorder.onstart = () => {
         logDebug('media recorder onstart', { state: mediaRecorder.state });
@@ -1070,6 +1077,7 @@
     } catch (err) {
       console.error('[Voxtral] mic start error', err);
       setMicBusy(false);
+      notifyHeroListening(false);
       if (mediaStream) {
         mediaStream.getTracks().forEach((t) => t.stop());
         mediaStream = null;
@@ -1095,6 +1103,7 @@
       if (micActive) {
         setMicBusy(false);
       }
+      notifyHeroListening(false);
       isMicFlowSuspended = !finalize;
       logDebug('mic stop ignored', {
         hasRecorder: Boolean(mediaRecorder),
@@ -1172,6 +1181,7 @@
     }
     isMicFlowSuspended = finalize ? false : true;
     setMicBusy(false);
+    notifyHeroListening(false);
     if (finalize && transcriptionText && transcriptionText.trim()) {
       const spokenText = transcriptionText.trim();
       notifyHeroSpeech(spokenText);

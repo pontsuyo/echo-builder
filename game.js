@@ -164,6 +164,7 @@ let walkTime = 0;
 let lastTime = performance.now();
 let liveTranscriptLine = '';
 let latestLiveTranscript = '';
+let heroListening = false;
 let firstBuilderAudioPaused = false;
 
 function clamp(v, min, max) {
@@ -274,6 +275,10 @@ function setLiveTranscript(text) {
   }
 
   latestLiveTranscript = line;
+}
+
+function setHeroListening(active) {
+  heroListening = Boolean(active);
 }
 
 function pauseMicForBuildAndResumeNextChild(nextHasTurn) {
@@ -998,18 +1003,44 @@ function drawDotBody(x, y, sprite = {}) {
   const w = sprite.w || 12;
   const h = sprite.h || 12;
   const isHero = sprite.isHero === true;
+  const isThinking = isHero && Boolean(sprite.isListening);
   const heroColor = '#00ff00';
   const heroEye = '#003b14';
   const enemyColor = sprite.color || '#ff3d3d';
 
-  ctx.fillStyle = isHero ? heroColor : enemyColor;
-  ctx.fillRect(x, y, w, h);
+  const drawY = y + (isThinking ? -2 : 0);
+  const drawH = h + (isThinking ? 2 : 0);
 
   if (isHero) {
-    ctx.fillStyle = heroEye;
-    ctx.fillRect(x + (sprite.facing >= 0 ? w - 3 : 3), y + 4, 2, 2);
+    ctx.fillStyle = '#0fef2e';
+    ctx.fillRect(x, drawY, w, drawH);
+
+    if (isThinking) {
+      // 顔を上を向いた「考え中」ポーズ
+      ctx.fillStyle = '#8dff89';
+      ctx.fillRect(x + 2, drawY - 3, w - 4, 3);
+
+      ctx.fillStyle = heroEye;
+      ctx.fillRect(x + 4, drawY, 2, 2);
+      ctx.fillRect(x + 6, drawY, 2, 2);
+      ctx.fillRect(x + 3, drawY - 2, 1, 2);
+      ctx.fillRect(x + 8, drawY - 2, 1, 2);
+      ctx.fillRect(x + w / 2 - 1, drawY - 2, 2, 2);
+    } else {
+      ctx.fillStyle = heroEye;
+      ctx.fillRect(x + (sprite.facing >= 0 ? w - 3 : 3), y + 4, 2, 2);
+    }
+
+    // 顎に手を当てるように見せる装飾（簡易）
+    if (isThinking) {
+      ctx.fillStyle = '#80e6ff';
+      ctx.fillRect(x + w - 1, drawY + 6, 1, 3);
+      ctx.fillRect(x + w - 2, drawY + 8, 2, 1);
+    }
   } else {
     // ドット風: 2x2で色を変える
+    ctx.fillStyle = enemyColor;
+    ctx.fillRect(x, y, w, h);
     ctx.fillStyle = '#ff9a9a';
     ctx.fillRect(x + 1, y + 1, 4, 4);
     ctx.fillRect(x + w - 5, y + 1, 4, 4);
@@ -1048,14 +1079,16 @@ function draw() {
   // Hero (always on top)
   const px = player.x - cameraX;
   if (px + 80 >= 0 && px - 80 <= W) {
-    drawDotBody(px, player.y, {
+    const heroSprite = {
       w: player.w,
       h: player.h,
       facing: player.facing,
       walkPhase: player.walkPhase,
+      isListening: heroListening,
       type: 'human',
       isHero: true,
-    });
+    };
+    drawDotBody(px, player.y, heroSprite);
   }
 
   // HUD
@@ -1097,7 +1130,7 @@ function updateFromVoxtral() {
   // 予約。音声制御を将来差し込むためのフックのみ。
 }
 
-if (typeof window.setupVoxtralIntegration === 'function') {
+  if (typeof window.setupVoxtralIntegration === 'function') {
   window.setupVoxtralIntegration({
     getState: () => ({
       playerX: Math.floor(player.x),
@@ -1111,6 +1144,7 @@ if (typeof window.setupVoxtralIntegration === 'function') {
     }),
     setMessage: addMessage,
     setLiveTranscript,
+    setHeroListening,
     onHeroSpeech: receiveHeroCommand,
   });
 }
