@@ -1,0 +1,1 @@
+../../mistral-test/plan/game-concept-good/echo-builders/echo_builders_full_design.md

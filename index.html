@@ -70,17 +70,19 @@
     <div id="wrap">
       <canvas id="game" width="640" height="360"></canvas>
       <div class="toolbar">
-        <button id="ask-voxtral">Voxtralでヒント取得</button>
-        <span class="hint">←→で移動 / Zでジャンプ / Rでリトライ / 画面に表示される赤い敵を避ける</span>
+        <button id="ask-voxtral-mic">マイク開始</button>
+        <span class="hint">←→で移動 / Zでジャンプ / Rでリトライ / M:マイク開始・停止</span>
       </div>
     </div>
-    <!-- 開発用: ここにキーを直接埋めるならコメントを外して使う -->
+    <!-- ローカルでのみ開発向け設定 -->
     <script>
-      // window.__MISTRAL_API_KEY = 'sk-...';
-      // window.__MISTRAL_API_URL = 'https://api.mistral.ai/v1/chat/completions';
-      // window.__MISTRAL_API_MODEL = 'voxtral-mini';
+      // Voxtral/APIキーはブラウザ直書き禁止（開発はローカルプロキシ経由）
+      window.__MISTRAL_PROXY_URL = 'http://127.0.0.1:8001';
+      window.__MISTRAL_API_MODEL = 'mistral-small-latest';
+      window.__MISTRAL_AUDIO_TRANSCRIPT_MODEL = 'voxtral-mini-latest';
+      window.__MISTRAL_DEBUG = true; // 詳細ログ
     </script>
-    <script src="voxtral.js" defer></script>
-    <script src="game.js" defer></script>
+    <script src="voxtral.js?v=3" defer></script>
+    <script src="game.js?v=2" defer></script>
   </body>
 </html>
