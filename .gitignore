@@ -2,3 +2,4 @@
 .vibe
 .DS_Store
 wav/
+.env
