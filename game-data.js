@@ -187,6 +187,7 @@ function createNpc(i) {
     lastBuiltQuantity: 0,
     assignedBuildPartId: null,
     buildQuantity: 1,
+    isListeningToPlayer: false,
     lastHeardText: '',
     lastInterpretation: '',
     commandTargetX: null,
@@ -266,4 +267,5 @@ function resetNpcCommandState(npc) {
   npc.lastBuiltQuantity = 0;
   npc.assignedBuildPartId = null;
   npc.buildQuantity = 1;
+  npc.isListeningToPlayer = false;
 }

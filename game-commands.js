@@ -286,6 +286,16 @@ function getEnglishLabel(japaneseLabel) {
   return labelMap[japaneseLabel] || japaneseLabel;
 }
 
+function setListeningNpc(nextNpc) {
+  for (const npc of npcs) {
+    npc.isListeningToPlayer = false;
+  }
+  if (!nextNpc) {
+    return;
+  }
+  nextNpc.isListeningToPlayer = true;
+}
+
 function isBuildingCommand(text) {
   const raw = (text || '').trim();
   if (!raw) return { isBuild: false, interpretation: "I don't know what you said." };
@@ -450,12 +460,14 @@ function startCommandLineup(options = {}) {
     ordered[i].buildQuantity = 1;
   }
 
+  const firstQueued = ordered[0] || null;
+  setListeningNpc(firstQueued);
+
   updateCommandButtons();
   addMessage('作業を開始します。');
   
   // 先頭の子供を点滅させる
-  if (typeof window.getFirstQueuedChild === 'function' && typeof window.startBlinking === 'function') {
-    const firstQueued = window.getFirstQueuedChild();
+  if (typeof window.startBlinking === 'function') {
     if (firstQueued) {
       window.startBlinking(firstQueued.id);
     }
@@ -482,6 +494,8 @@ function receiveHeroCommand(text) {
     addMessage('すでに作業の割当は完了しています。');
     return;
   }
+
+  setListeningNpc(null);
 
   const parsed = isBuildingCommand(spoken);
   targetNpc.lastHeardText = spoken;
@@ -511,14 +525,6 @@ function receiveHeroCommand(text) {
     updateChildInterpretation(targetNpc.id, targetNpc.lastInterpretation);
   }
   
-  // 点滅対象を更新（RETURN_HOMEになった子供の次にQUEUEDの子供を点滅対象にする）
-  if (typeof window.getFirstQueuedChild === 'function' && typeof window.startBlinking === 'function') {
-    const nextQueued = window.getFirstQueuedChild();
-    if (nextQueued) {
-      window.startBlinking(nextQueued.id);
-    }
-  }
-
   appendCommandResultToLog(targetNpc);
   const wasFirstBuilder = commandSession.cursor === 0 && targetNpc.isBuildCommand;
   const currentCursor = commandSession.cursor;
@@ -529,10 +535,19 @@ function receiveHeroCommand(text) {
     addMessage(`作業完了: ${targetNpc.id} が最後の子です。`);
     
     // 点滅を停止
-    if (typeof stopBlinking === 'function') {
-      stopBlinking();
-    }
+      if (typeof stopBlinking === 'function') {
+        stopBlinking();
+      }
+      setListeningNpc(null);
   } else {
+    const nextQueued = commandSession.queue[commandSession.cursor] || null;
+    setListeningNpc(nextQueued);
+    if (typeof window.startBlinking === 'function') {
+      if (nextQueued) {
+        window.startBlinking(nextQueued.id);
+      }
+    }
+
     const next = commandSession.queue[commandSession.cursor];
     addMessage(`子${targetNpc.id} が作業を受理。次は子${next.id}`);
     if (wasFirstBuilder && !firstBuilderAudioPaused) {

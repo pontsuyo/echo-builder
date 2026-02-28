@@ -457,6 +457,11 @@ window.stopBlinking = stopBlinking;
 // QUEUED状態の子供のうち、最も先頭にいる子供を返す
 function getFirstQueuedChild() {
   if (npcs.length === 0) return null;
+
+  const explicitListeningNpc = npcs.find((npc) => npc.isListeningToPlayer);
+  if (explicitListeningNpc) {
+    return explicitListeningNpc;
+  }
   
   // QUEUED状態の子供を抽出
   const queuedChildren = npcs.filter(npc => npc.commandState === NPC_COMMAND_STATES.QUEUED);

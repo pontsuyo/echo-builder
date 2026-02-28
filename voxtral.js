@@ -1140,7 +1140,11 @@
       gameApi.startCommandLineup({ silentIfActive: true });
     }
     if (gameApi && typeof gameApi.onHeroSpeech === 'function') {
-      gameApi.onHeroSpeech(speechText);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          gameApi.onHeroSpeech(speechText);
+        });
+      });
     }
   }
 
@@ -1670,6 +1674,9 @@
       postMessage('音声入力を開始しました。しゃべるとリアルタイムで文字起こしします。');
       setMicBusy(true);
       notifyHeroListening(true);
+      if (gameApi && typeof gameApi.startCommandLineup === 'function') {
+        gameApi.startCommandLineup({ silentIfActive: true });
+      }
 
       mediaRecorder.onstart = () => {
         logDebug('media recorder onstart', { state: mediaRecorder.state });
@@ -1931,7 +1938,11 @@
         gameApi.startCommandLineup();
       }
       if (gameApi && typeof gameApi.onHeroSpeech === 'function') {
-        gameApi.onHeroSpeech(transcriptionText);
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            gameApi.onHeroSpeech(transcriptionText);
+          });
+        });
       }
       logDebug(`認識テキスト: ${transcriptionText}`);
     } catch (error) {
