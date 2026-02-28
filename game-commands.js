@@ -198,6 +198,15 @@ function setHeroListening(active) {
   heroListening = Boolean(active);
 }
 
+function isCommandSessionCompleted() {
+  return (
+    commandSession.cursor >= commandSession.queue.length
+    && commandSession.queue.length > 0
+    && !commandSession.active
+    && allOrdersReceived
+  );
+}
+
 function pauseMicForBuildAndResumeNextChild(nextHasTurn) {
   setLiveTranscript('');
 
@@ -389,9 +398,11 @@ function appendCommandResultToLog(child) {
 
 function startCommandLineup(options = {}) {
   const { silentIfActive = false } = options || {};
-  if (commandSession.active) {
+  const completed = isCommandSessionCompleted();
+
+  if (commandSession.active || completed) {
     if (!silentIfActive) {
-      addMessage('すでに作業中です。');
+      addMessage(commandSession.active ? 'すでに作業中です。' : '作業は既に完了しています。');
     }
     return;
   }
@@ -430,6 +441,11 @@ function startCommandLineup(options = {}) {
 function receiveHeroCommand(text) {
   const spoken = (text || '').trim();
   if (!spoken) return;
+
+  if (isCommandSessionCompleted()) {
+    addMessage('作業は完了しています。');
+    return;
+  }
 
   if (!commandSession.active) {
     addMessage('作業が開始されていません。');
