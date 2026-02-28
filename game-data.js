@@ -15,7 +15,9 @@ function resizeCanvasForDpr() {
 
   canvas.width = Math.round(cssW * dpr);
   canvas.height = Math.round(cssH * dpr);
-  ctx.setTransform(cssW / W, 0, 0, cssH / H, 0, 0);
+  // Backing store is scaled by DPR, so the world transform must include it
+  // to keep logical 640x360 content filling the full CSS canvas.
+  ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
 }
 
 resizeCanvasForDpr();
