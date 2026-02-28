@@ -337,6 +337,7 @@ function buildGoalRuleScore(goal, builtParts, destroyedParts = []) {
 
   const requiredByType = {};
   const breakdownRows = [];
+  const extraByPartType = Object.create(null);
   let matchScore = 0;
   let maxMatchScore = 0;
   let extraCount = 0;
@@ -404,10 +405,10 @@ function buildGoalRuleScore(goal, builtParts, destroyedParts = []) {
 
   for (const [type, parts] of Object.entries(builtByType)) {
     const expected = requiredByType[type] || 0;
-    if (parts.length > expected) {
-      extraCount += parts.length - expected;
-    } else if (expected === 0) {
-      extraCount += parts.length;
+    const extra = expected === 0 ? parts.length : Math.max(0, parts.length - expected);
+    if (extra > 0) {
+      extraCount += extra;
+      extraByPartType[type] = (extraByPartType[type] || 0) + extra;
     }
   }
 
@@ -434,6 +435,7 @@ function buildGoalRuleScore(goal, builtParts, destroyedParts = []) {
       matchScaled: Math.round(matchScaled * 1000) / 1000,
       extraCount,
       destroyedCount,
+      extraByPartType,
       extraPenalty,
       destroyPenalty,
       extraPenaltyValue,
@@ -457,6 +459,7 @@ function evaluateGoalScore(goalSpec = null, placedParts = [], destroyedParts = [
         matchScaled: 0,
         extraCount: 0,
         destroyedCount: 0,
+        extraByPartType: {},
         extraPenalty: 0,
         destroyPenalty: 0,
         extraPenaltyValue: -5,

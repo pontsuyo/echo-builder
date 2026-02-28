@@ -480,6 +480,31 @@ function getGoalHintTextLines() {
   return lines;
 }
 
+const SCORE_PART_LABELS_EN = {
+  wall: 'Wall',
+  roof: 'Roof',
+  chimney: 'Chimney',
+  door: 'Door',
+  column: 'Column',
+  window: 'Window',
+  default: 'Part',
+};
+
+function getEnglishPartLabel(partType) {
+  return SCORE_PART_LABELS_EN[partType] || String(partType || '').trim() || SCORE_PART_LABELS_EN.default;
+}
+
+function pluralizeEnglishPartLabel(partType, count) {
+  const singular = getEnglishPartLabel(partType);
+  if (Math.abs(Number(count)) <= 1) {
+    return singular;
+  }
+  if (singular.endsWith('y')) {
+    return `${singular.slice(0, -1)}ies`;
+  }
+  return `${singular}s`;
+}
+
 function getScorePanelTextLines() {
   if (!scoreVisible || !Number.isFinite(Number(goalScore))) {
     return [];
@@ -496,14 +521,31 @@ function getScorePanelTextLines() {
   const penalty = extraPenalty + destroyPenalty;
   const extraCount = Number.isFinite(goalScoreBreakdown.extraCount) ? goalScoreBreakdown.extraCount : 0;
   const destroyedCount = Number.isFinite(goalScoreBreakdown.destroyedCount) ? goalScoreBreakdown.destroyedCount : 0;
+  const extraByPartType = goalScoreBreakdown.extraByPartType || {};
+  const extraPenaltyValue = Number.isFinite(goalScoreBreakdown.extraPenaltyValue) ? goalScoreBreakdown.extraPenaltyValue : -5;
 
-  return [
+  const extraRows = Object.entries(extraByPartType)
+    .filter(([, count]) => Number.isFinite(count) && Number(count) > 0)
+    .map(([partType, count]) => {
+      const amount = Number(count);
+      const unitPenalty = Math.abs(extraPenaltyValue) * amount;
+      const partPenalty = extraPenaltyValue < 0 ? -unitPenalty : unitPenalty;
+      return `  Too many ${pluralizeEnglishPartLabel(partType, amount)}: ${amount} extra (${partPenalty} pts)`;
+    });
+
+  const lines = [
     `Score: ${scoreValue} pts`,
     `Match: ${rate}%`,
-    `Penalty: ${penalty}`,
-    `  Extra: ${extraPenalty} pts (${extraCount} pieces)`,
-    `  Destroy: ${destroyPenalty} pts (${destroyedCount} pieces)`,
+    `Total Penalty: ${penalty} pts`,
+    ...(extraRows.length ? extraRows : ['  Extra parts: none']),
   ];
+
+  if (destroyedCount > 0) {
+    const pieceLabel = destroyedCount === 1 ? 'piece' : 'pieces';
+    lines.push(`  Destroyed: ${destroyedCount} ${pieceLabel} (${destroyPenalty} pts)`);
+  }
+
+  return lines;
 }
 
 function truncateForClearText(value, maxLen = 24) {
