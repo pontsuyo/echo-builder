@@ -1,716 +1,344 @@
 # 機能設計書 - Echo Builders
 
+## 0. 優先度
+
+- **p0**: 現在の実装で必須
+- **p1**: 後続で検討する機能（現行は未実装）
+
 ## 1. 概要
 
-この文書は、Echo Buildersの機能設計を詳細に記述します。プロダクト要求定義書（PRD）を基に、各機能の具体的な動作、インターフェース、データフローを定義します。
+この文書は Echo Builders の機能実装の現行方針を定義する。  
+対象は「音声入力→子どもの作業指示割り当て→建築進行可視化」の流れを成立させる機能であり、将来拡張（TTS / スコアリング）は p1 として切り分ける。
 
 ## 2. システムアーキテクチャ
 
 ```
 ┌───────────────────────────────────────────────────┐
-│                    フロントエンド (ブラウザ)                    │
-├─────────────────┬─────────────────┬───────────────┤
-│   音声認識モジュール   │   ゲームエンジン       │   UIモジュール  │
-└─────────────────┴─────────────────┴───────────────┘
-                              │
-                              ▼
-┌───────────────────────────────────────────────────┐
-│                    バックエンド (プロキシ)                     │
-├─────────────────┬─────────────────┬───────────────┤
-│  Mistral APIプロキシ  │  ElevenLabs APIプロキシ │   データ管理   │
-└─────────────────┴─────────────────┴───────────────┘
+│             フロントエンド（ブラウザ）            │
+├──────────────────┬───────────────────────┬────────┤
+│ Canvasゲーム基盤 │ 音声認識連携（Voxtral）│ UI/HUD │
+└────────┬─────────┴───────┬───────────────┴───────┘
+         ▼                 ▼
+┌────────────────────────────────────────────────────┐
+│          ゲームロジック層（同一実行コンテキスト）   │
+├───────────────┬─────────────────┬──────────────────┤
+│ コマンド解釈  │ 建築実行エンジン │ コマンド結果表示 │
+└───────────────┴─────────────────┴──────────────────┘
+         │
+         ▼
+┌───────────────────────────────────────────────┐
+│ APIプロキシ                                      │
+├───────────────────────────────────────────────┤
+│ Mistral Voxtral API                         │
+└───────────────────────────────────────────────┘
+
+（※ElevenLabs APIは現時点で未接続。将来 p1 で検討）
 ```
 
 ## 3. モジュール設計
 
-### 3.1 音声認識モジュール
+### 3.1 音声認識モジュール（p0）
 
 #### 機能
-- マイク入力の取得と管理
-- 音声データのストリーミング送信
-- Mistral Voxtral APIとの通信
-- リアルタイム転写結果の処理
+- マイク権限取得
+- 音声キャプチャ開始 / 停止
+- ストリーミング転写（ライブ転写を中心）
+- ゲームへの転写結果連携（逐次表示 + コマンド確定時の実行）
 
-#### インターフェース
+#### 外部連携
+- `voxtral.js` とゲームロジックは同一フロントエンド内で接続し、`window.setupVoxtralIntegration(api)` で相互参照。
+- 連携コールバック:
+  - `setMessage(text)`
+  - `setLiveTranscript(text)`
+  - `setPlayerListening(boolean)` ※実体はプレイヤー入力状態
+  - `onPlayerCommand(text)` ※確定テキスト到達時のゲーム側受け口
 
-```javascript
-class VoiceRecognition {
-  // 初期化
-  constructor(config) 
-  
-  // マイクアクセス開始
-  async start() 
-  
-  // マイクアクセス停止
-  stop() 
-  
-  // コールバック登録
-  onTranscript(callback) 
-  
-  // エラーハンドリング
-  onError(callback) 
-  
-  // 現在の状態取得
-  getStatus() 
-}
-```
+#### 制御 API（既存公開API）
+- `startVoxtralMic()`
+- `stopVoxtralMic()`
+- `pauseVoxtralMic()`
+- `resumeVoxtralMic()`
+- `setupVoxtralIntegration(api)`
 
 #### データフロー
+1. ユーザーが `ask-voxtral-mic` ボタンまたは M キーで入力を開始。
+2. ゲーム側状態に関係なく、`voxtral.js` が `MediaRecorder` で音声を取得し、Voxtral API経由で文字起こし。
+3. ライブ文字列を `setLiveTranscript` で画面に反映。
+4. 一定条件で確定文を `onPlayerCommand` へ送信。
+5. 受け取り側で同一ターン内処理へ直接反映。
 
-```
-1. ユーザーがマイクボタンをクリック
-2. ブラウザがマイクアクセス許可をリクエスト
-3. 音声データをチャンク単位でキャプチャ
-4. チャンクをMistral APIプロキシにストリーミング送信
-5. 転写結果を受信
-6. リアルタイムでUIに表示
-7. 完了またはエラー時にコールバックを実行
-```
+### 3.2 コマンド解釈エンジン（p0）
 
-#### 実装詳細
-
-- **音声キャプチャ**: `navigator.mediaDevices.getUserMedia()`
-- **ストリーミング**: 2秒間隔でのチャンク送信
-- **エラーハンドリング**: 
-  - 400エラー: モデル名不整合の可能性
-  - 401エラー: 認証エラー
-  - 415エラー: オーディオフォーマット不正
-  - 500エラー: サーバーエラー
-- **フォールバック**: ストリーミング失敗時は非ストリーミングモードに切り替え
-
-### 3.2 建築理解エンジン
+#### 目的
+- 転写結果を「建築指示」「非建築指示」に分類。
+- 対象部位（屋根/壁/窓/扉/煙突/建築全体）と数量（数詞）を抽出。
 
 #### 機能
-- 音声テキストの解析
-- 建築パラメータの抽出
-- 曖昧理解モデルの適用
-- 確信度計算
-- 誤解生成
+- 正規化（小文字化・句読点除去・連続空白圧縮）
+- 数量抽出（アラビア数字、日本語数字、英語数詞）
+- 部位一致ルール（`BUILD_COMMAND_RULES` / `BUILD_KEYWORDS`）で判定
+- 判定結果を次ターンの NPC へ割り当て
 
-#### インターフェース
+#### 判定出力
+- `isBuild: boolean`
+- `preferredPartType: 'wall'|'roof'|'chimney'|'door'|'window'|'house'|'floor'|'fence'|'column'|null`
+- `buildQuantity: number`
+- `interpretation: string`（UI表示用）
 
-```javascript
-class BuildingUnderstandingEngine {
-  constructor(workerProfile) 
-  
-  // テキスト解析
-  analyze(text) 
-  
-  // 建築パラメータ取得
-  getBuildingParameters() 
-  
-  // 理解度スコア取得
-  getUnderstandingScore() 
-  
-  // 復唱テキスト生成
-  generateRecapText() 
-}
-```
+### 3.3 建築実行エンジン（p0）
 
-#### 解析ロジック
+#### 目的
+- 受け取った NPC ごとの指示を順番に実行し、家パーツの完成状態へ反映する。
 
-```
-入力テキスト: "丸い屋根で窓は4つで赤い感じ"
+#### 実装フロー
+1. 毎回の音声確定時に、前方優先の NPC 順序で命令キューを作成。
+2. `receivePlayerCommand` が入るたびに現在キュー先頭 NPC が指示を受領。
+3. 受領 NPC を建築位置へ誘導し、`buildClosestHousePartForNpc` で対象部位を選定。
+4. `completeBuildForNpcWithQuantity` により `buildQuantity` 分の部位を建築完了。
+5. キュー最終処理時に `allOrdersReceived=true`、完成トリガーへ移行。
 
-1. トークナイズ
-   → ["丸い", "屋根", "で", "窓", "は", "4つ", "で", "赤い", "感じ"]
+#### データ構造（現行）
+- NPC: `isBuildCommand / preferredPartType / buildQuantity / lastHeardText / lastInterpretation / commandState / isListeningToPlayer`
+- 家パーツ: `houseParts[]`（`type`, `built`, `builtBy`, `assignedTo`）
+- セッション: `commandSession.active`, `commandSession.queue`, `commandSession.cursor`
 
-2. 品詞タグ付け
-   → [
-     {word: "丸い", pos: "形容詞", confidence: 0.95},
-     {word: "屋根", pos: "名詞", confidence: 0.98},
-     {word: "窓", pos: "名詞", confidence: 0.92},
-     {word: "4つ", pos: "数詞", confidence: 0.88},
-     {word: "赤い", pos: "形容詞", confidence: 0.90}
-   ]
+### 3.4 音声合成モジュール（p1）
 
-3. 建築パラメータ抽出
-   → {
-     shapes: ["丸い"],
-     parts: ["屋根", "窓"],
-     numbers: [4],
-     colors: ["赤い"]
-   }
+- 現行は未実装。
+- 想定は「建築完了時の復唱音声再生」を追加する設計。
+- 検討対象: ElevenLabs 連携の有無と、音声生成コスト/待ち時間の扱い。
 
-4. 曖昧理解適用（ワーカー属性による変換）
-   → {
-     roofShape: "round",
-     windowCount: 3,  // 数字理解力0.7 → 4→3に変換
-     wallColor: "#ff8888",  // "赤い"をオレンジ寄りに解釈
-     understandingScore: 0.75
-   }
+### 3.5 スコアリング（p1）
 
-5. 復唱テキスト生成
-   → "丸い屋根で、窓は3つ、少し赤い感じだと思いました！"
-```
+- 現行は未実装。
+- 現状はコマンド成立/不成立と建築結果ログのみを扱う。
+- 指示一致度の計量表示を将来追加するかは別途判断。
 
-#### 曖昧理解モデル
+### 3.6 UI/UXモジュール（p0）
 
-```javascript
-// ワーカー属性例
-const workerProfile = {
-  id: "worker-01",
-  name: "タロウ",
-  understandingBias: {
-    numbers: 0.7,    // 数字理解力
-    colors: 0.8,     // 色理解力
-    shapes: 0.9,     // 形状理解力
-    abstract: 0.6    // 抽象語理解力
-  }
-};
+#### 画面構成
+- Canvas本体（ゲーム表示）
+- ツールバー
+  - `結果確認`（コマンド結果パネル表示）
+  - `マイク開始`（音声入力）
+  - 開発用テストボタン（3点）
+- 音声入力履歴（HUD）
+- コマンド結果パネル
 
-// 曖昧理解関数
-function applyAmbiguousUnderstanding(params, profile) {
-  const result = {};
-  
-  // 屋根形状（形状理解力が高いのでほぼ正確）
-  result.roofShape = interpretShape(params.shapes[0], profile.understandingBias.shapes);
-  
-  // 窓の数（数字理解力が低いので誤解が発生）
-  result.windowCount = applyNumberMisunderstanding(
-    params.numbers[0], 
-    profile.understandingBias.numbers
-  );
-  
-  // 壁の色（色理解力が中程度）
-  result.wallColor = interpretColor(
-    params.colors[0], 
-    profile.understandingBias.colors
-  );
-  
-  // 理解度スコア計算
-  result.understandingScore = calculateScore(params, profile);
-  
-  return result;
-}
-```
+#### コマンド結果パネル（表示時のみ）
+- 子どもID
+- 受信文字列（聞取）
+- 解析結果（interpreted）
+- 数量
 
-### 3.3 建築生成システム
-
-#### 機能
-- 建築パラメータに基づく建物生成
-- 2Dピクセルアート描画
-- アニメーション制御
-- パーツ別描画管理
-
-#### インターフェース
-
-```javascript
-class BuildingGenerator {
-  constructor(canvasContext) 
-  
-  // 建物生成
-  generate(parameters) 
-  
-  // アニメーション更新
-  update(deltaTime) 
-  
-  // 描画
-  draw() 
-  
-  // 完了状態取得
-  isComplete() 
-  
-  // 現在の進捗取得
-  getProgress() 
-}
-```
-
-#### 建築パラメータ
-
-```javascript
-{
-  // 基本パラメータ
-  roofShape: "round" | "triangle" | "flat",  // 屋根形状
-  wallColor: "string",  // 16進数カラーコード
-  windowCount: "number",  // 窓の数
-  floors: "number",  // 階数
-  
-  // オプションパラメータ
-  doorType: "normal" | "double" | "sliding",  // ドアタイプ
-  decorations: [  // 装飾リスト
-    {
-      type: "flower" | "flag" | "chimney",
-      position: "string",
-      color: "string"
-    }
-  ],
-  
-  // メタデータ
-  understandingScore: "number",  // 0-1の理解度
-  workerId: "string"  // ワーカーID
-}
-```
-
-#### 描画ロジック
-
-```javascript
-// 屋根描画
-function drawRoof(ctx, x, y, width, shape, color) {
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  
-  switch(shape) {
-    case "round":
-      // 半円の屋根
-      ctx.arc(x + width/2, y, width/2, Math.PI, 0, false);
-      ctx.lineTo(x + width, y);
-      break;
-    case "triangle":
-      // 三角の屋根
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + width/2, y - width/2);
-      ctx.lineTo(x + width, y);
-      break;
-    case "flat":
-      // 平らな屋根
-      ctx.rect(x, y - 20, width, 20);
-      break;
-  }
-  
-  ctx.closePath();
-  ctx.fill();
-}
-
-// 窓描画
-function drawWindow(ctx, x, y, size, color) {
-  // 窓枠
-  ctx.fillStyle = "#5e4839";
-  ctx.fillRect(x, y, size, size);
-  
-  // ガラス部分
-  ctx.fillStyle = color;
-  ctx.fillRect(x + 2, y + 2, size - 4, size - 4);
-}
-```
-
-### 3.4 音声合成モジュール
-
-#### 機能
-- ElevenLabs APIとの通信
-- 音声データの生成
-- 音声再生
-- ワーカー個性に応じた声の選択
-
-#### インターフェース
-
-```javascript
-class VoiceSynthesis {
-  constructor(apiKey) 
-  
-  // 音声生成
-  async generateSpeech(text, voiceId) 
-  
-  // 音声再生
-  play(audioData) 
-  
-  // 停止
-  stop() 
-  
-  // 現在の状態取得
-  getStatus() 
-}
-```
-
-#### データフロー
-
-```
-1. 建築完了イベント発生
-2. 復唱テキストを生成
-3. ワーカーの声IDを取得
-4. ElevenLabs APIにリクエスト送信
-5. 音声データを受信
-6. オーディオ要素を作成
-7. 音声再生
-8. 再生完了イベントを発火
-```
-
-#### ワーカーと声のマッピング
-
-```javascript
-const WORKER_VOICES = {
-  "worker-01": {
-    voiceId: "elevenlabs-voice-id-01",
-    name: "タロウ",
-    description: "若い男性の声、やや早口",
-    understandingBias: {
-      numbers: 0.7,
-      colors: 0.8,
-      shapes: 0.9,
-      abstract: 0.6
-    }
-  },
-  "worker-02": {
-    voiceId: "elevenlabs-voice-id-02",
-    name: "ハナコ",
-    description: "落ち着いた女性の声、丁寧",
-    understandingBias: {
-      numbers: 0.9,
-      colors: 0.95,
-      shapes: 0.8,
-      abstract: 0.85
-    }
-  }
-};
-```
-
-### 3.5 UI/UXモジュール
-
-#### コンポーネント構成
-
-```
-┌───────────────────────────────────────────────────┐
-│                    ヘッダー                       │
-├─────────────────┬─────────────────┬───────────────┤
-│   スコア表示     │   マイクコントロール     │   設定ボタン  │
-├─────────────────┴─────────────────┴───────────────┤
-│                    キャンバス（ゲームエリア）      │
-├───────────────────────────────────────────────────┤
-│                    フッター                       │
-├─────────────────┬─────────────────┬───────────────┤
-│   音声転写表示   │   進捗バー             │   アクションボタン│
-└─────────────────┴─────────────────┴───────────────┘
-```
-
-#### 主要UI要素
-
-1. **マイクコントロール**
-   - マイクオン/オフトグル
-   - 録音中インジケーター
-   - 音量メーター
-
-2. **音声転写表示エリア**
-   - リアルタイム転写テキスト
-   - 自動スクロール
-   - 履歴表示（最大5行）
-
-3. **建築進捗表示**
-   - 進捗バー（0-100%）
-   - 現在の工程表示
-   - 残り時間推定
-
-4. **スコア表示**
-   - 理解度スコア（0-100%）
-   - ワーカー幸福度
-   - ボーナスポイント
-
-5. **アクションボタン**
-   - リセットボタン
-   - 再生ボタン
-   - 共有ボタン
-   - 設定ボタン
-
-#### 状態遷移
-
-```
-┌─────────┐
-│   初期状態  │
-└─────────┘
-       │
-       ▼
-┌─────────┐
-│  音声入力中  │
-└─────────┘
-       │
-       ▼
-┌─────────┐
-│  建築中    │
-└─────────┘
-       │
-       ▼
-┌─────────┐
-│  復唱中    │
-└─────────┘
-       │
-       ▼
-┌─────────┐
-│  完了状態  │
-└─────────┘
-       │
-       ▼
-┌─────────┐
-│   リセット   │
-└─────────┘
-```
+#### コントロール
+- 音声入力トリガ:
+  - `マイク開始` ボタン
+  - `M` キーによる開始/停止
+- キーボード移動（左右・ジャンプ）は本仕様から除外（実装対象外）
 
 ## 4. データ設計
 
-### 4.1 ゲーム状態
+### 4.1 ゲーム状態（p0）
 
 ```javascript
 {
-  // 現在のゲーム状態
-  state: "idle" | "listening" | "building" | "reciting" | "completed",
-  
-  // 音声認識
-  voiceRecognition: {
-    isActive: boolean,
-    transcript: string,
-    history: string[],
-    error: string | null
+  cameraX: number,
+  message: string,
+  clear: boolean,
+  walkTime: number,
+  firstBuilderAudioPaused: boolean,
+
+  npcs: [
+    {
+      id,
+      x,
+      y,
+      w,
+      h,
+      homeX,
+      homeY,
+      vx,
+      vy,
+      dir,
+      state, // walk | idle
+      walkPhase,
+      walkTimer,
+      idleTimer,
+      minX,
+      maxX,
+      commandState, // queued | returnHome | completed | roam
+      lineSlot,
+      commandMarkUntil,
+      isBuildCommand,
+      isListeningToPlayer,
+      preferredPartType,
+      requestedBuildQuantity,
+      lastBuiltQuantity,
+      assignedBuildPartId,
+      buildQuantity,
+      lastHeardText,
+      lastInterpretation,
+      commandTargetX,
+      commandTargetY
+    }
+  ],
+
+  commandSession: {
+    active,
+    queue: [], // NPC参照の配列
+    cursor
   },
-  
-  // 建築データ
-  building: {
-    parameters: BuildingParameters,
-    progress: number,  // 0-1
-    isComplete: boolean,
-    startTime: number,
-    endTime: number | null
+
+  houseParts: [
+    {
+      id,
+      type, // wall | roof | chimney | door | window
+      x,
+      y,
+      w,
+      h,
+      built,
+      builtBy,
+      assignedTo,
+      isDynamic
+    }
+  ],
+
+  buildingProgress: {
+    allOrdersReceived,
+    houseRevealActive,
+    houseRevealDone
   },
-  
-  // ワーカー情報
-  worker: {
-    id: string,
-    name: string,
-    voiceId: string,
-    understandingBias: UnderstandingBias
+
+  commandResultRows: [
+    {
+      childId,
+      heard,
+      interpreted,
+      quantity
+    }
+  ],
+
+  commandLine: {
+    spacing, queueSpeed, returnSpeed, workSpeed
   },
-  
-  // スコア
-  score: {
-    understanding: number,  // 0-1
-    happiness: number,      // 0-1
-    bonus: number           // 0-1
+
+  childInterpretations: [
+    { childId, interpretation }
+  ],
+
+  ui: {
+    showCommandResults
   },
-  
-  // 設定
-  settings: {
-    microphoneVolume: number,
-    voiceVolume: number,
-    showDebugInfo: boolean
+
+  voice: {
+    liveTranscriptLine,
+    latestLiveTranscript,
+    playerListening
   }
 }
 ```
 
-### 4.2 イベント設計
+### 4.2 イベント（p0）
 
 | イベント名 | データ | 発火タイミング |
-|------------|-------|----------------|
-| `voice:start` | `{ timestamp }` | 音声入力開始時 |
+|------------|--------|----------------|
 | `voice:transcript` | `{ text, isFinal }` | 転写結果更新時 |
-| `voice:end` | `{ finalText }` | 音声入力終了時 |
-| `voice:error` | `{ error }` | エラー発生時 |
-| `building:start` | `{ parameters }` | 建築開始時 |
-| `building:progress` | `{ progress }` | 建築進捗更新時 |
-| `building:complete` | `{ building }` | 建築完了時 |
-| `recite:start` | `{ text }` | 復唱開始時 |
-| `recite:end` | `{}` | 復唱終了時 |
-| `game:reset` | `{}` | ゲームリセット時 |
+| `voice:toggle` | `{ active }` | マイク開始/停止時 |
+| `command:session.created` | `{ queueSize }` | 音声確定時にキューを新規作成した時 |
+| `command:session.assign` | `{ childId, isBuild, interpreted, quantity, preferredPartType }` | 子どもにコマンドを割当時 |
+| `command:session.next` | `{ nextChildId }` | 次の子どもへコマンド待ち時 |
+| `command:build.complete` | `{ childId, builtCount, partIds }` | 部位が建築完了時 |
+| `game:reset` | `{ reason }` | リセット時 |
 
 ## 5. API設計
 
-### 5.1 Mistral Voxtral APIラッパー
+### 5.1 Mistral Voxtral APIラッパー（p0）
 
-```javascript
-class MistralVoxtralAPI {
-  constructor(proxyUrl, apiKey = null) 
-  
-  // 音声認識リクエスト
-  async transcribe(audioBlob, model = "voxtral-mini-2602") 
-  
-  // ストリーミング転写
-  async streamTranscribe(audioStream, model = "voxtral-mini-2602") 
-  
-  // エラーハンドリング
-  handleError(error) 
-}
-```
+#### 設定
+- 音声転写エンドポイント: `POST /v1/audio/transcriptions`
+- モデル: `voxtral-mini-latest` 系（実行時環境で調整）
+- 文字起こし言語: 英語優先の運用
 
-### 5.2 ElevenLabs APIラッパー
+#### 役割
+- ブラウザ側録音データを `FormData(file)` として API に送信
+- 転写失敗時はフォールバック（再試行/代替 MIME）を実施
+- 成功した文字列をゲームのイベントとして再注入
 
-```javascript
-class ElevenLabsAPI {
-  constructor(apiKey) 
-  
-  // 音声合成
-  async generateSpeech(text, voiceId, options = {}) 
-  
-  // 声の一覧取得
-  async listVoices() 
-  
-  // エラーハンドリング
-  handleError(error) 
-}
-```
+### 5.2 ElevenLabsラッパー（p1）
+
+- 現行実装なし。
+- 音声復唱を追加する際の拡張ポイントとして将来定義。
 
 ## 6. エラーハンドリング
 
-### 6.1 エラー種類と対応
+### 6.1 種類と対処
 
-| エラータイプ | 原因 | 対応 |
-|--------------|------|------|
-| `MicrophonePermissionDenied` | マイク許可拒否 | ユーザーに許可を促すメッセージ表示 |
-| `MicrophoneNotFound` | マイク未接続 | 代替入力方法を提案 |
-| `NetworkError` | ネットワークエラー | リトライボタン表示 |
-| `ApiLimitExceeded` | APIレートリミット | クールダウン表示 |
-| `InvalidModel` | 無効なモデル名 | フォールバックモデル使用 |
-| `AudioDecodeFailure` | オーディオデコード失敗 | チャンク再送信 |
+- マイク権限拒否  
+  - メッセージ表示、再許可の導線を示す
+- マイク/MediaRecorder未対応  
+  - エラーログ表示＋機能利用ガイド
+- 音声送信失敗（ネットワーク/API）  
+  - エラーログ + 連続試行回数を調整して再試行可否判断
+- 無効コマンド  
+  - `isBuild=false` として受理し、次ターン処理へ進む
+- 建築対象不足  
+  - 指示数と利用可能部位不足を考慮し `isBuildCommand=false` にフォールバック
 
-### 6.2 エラーリカバリ戦略
-
-1. **マイクエラー**
-   - 3回までリトライ
-   - テキスト入力フォールバックを提示
-   - 設定画面へのリンク表示
-
-2. **APIエラー**
-   - 500ms待機後リトライ（最大3回）
-   - フォールバックエンドポイント使用
-   - オフラインモード提案
-
-3. **理解エラー**
-   - 確信度が低い場合は聞き返し
-   - 複数の理解候補を提示
-   - デフォルト値を使用
+### 6.2 フォールバックポリシー
+- 文字起こしの未確定値は画面表示のみ維持し、確定時にコマンド登録。
+- 非建築として判定された文字列でもゲーム進行は停止させず継続。
+- API連携失敗時はゲーム全体停止はしない。
 
 ## 7. テスト設計
 
-### 7.1 テストケース
+### 7.1 機能テスト（現行）
+- 音声セッション開始/停止
+- ライブ転写文字列の反映
+- 建築指示の識別
+- キュー順（子どもの前方順）での割当
+- 建築完了後の結果ログ表示
+- リセット時の状態初期化
 
-#### 音声認識モジュール
-- マイク許可が得られること
-- 音声が正しくキャプチャされること
-- 転写結果がリアルタイムで表示されること
-- エラーが適切にハンドリングされること
-
-#### 建築理解エンジン
-- テキストから正しくパラメータが抽出されること
-- 曖昧理解が適用されること
-- 理解度スコアが計算されること
-- 復唱テキストが生成されること
-
-#### 建築生成システム
-- パラメータに基づいて正しく建物が生成されること
-- アニメーションがスムーズに表示されること
-- 進捗が正しく更新されること
-
-#### 音声合成モジュール
-- 音声が正しく生成されること
-- 再生が正しく行われること
-- エラーが適切にハンドリングされること
-
-### 7.2 テストデータ
+### 7.2 テストデータ（p0）
 
 ```javascript
-// 音声認識テストデータ
-const voiceTestCases = [
-  {
-    input: "丸い屋根で窓は4つで赤い感じ",
-    expected: {
-      shapes: ["丸い"],
-      parts: ["屋根", "窓"],
-      numbers: [4],
-      colors: ["赤い"]
-    }
-  },
-  {
-    input: "高い塔を3つ作って",
-    expected: {
-      shapes: ["高い"],
-      parts: ["塔"],
-      numbers: [3]
-    }
-  }
-];
-
-// 建築パラメータテストデータ
-const buildingTestCases = [
-  {
-    input: {
-      roofShape: "round",
-      windowCount: 4,
-      wallColor: "#ff0000"
-    },
-    worker: workerProfiles["worker-01"],
-    expected: {
-      roofShape: "round",
-      windowCount: 3,  // 数字理解力0.7で誤解
-      wallColor: "#ff8888",  // 色理解力0.8で少しズレる
-      understandingScore: 0.75
-    }
-  }
+const voiceSamples = [
+  'add 2 windows',
+  'put a red roof',
 ];
 ```
 
 ## 8. パフォーマンス設計
 
-### 8.1 パフォーマンス目標
-- 音声認識レスポンスタイム: <500ms
-- 建築生成時間: <2秒
-- フレームレート: 60fps維持
-- メモリ使用量: <200MB
-
-### 8.2 最適化戦略
-1. **音声認識**
-   - チャンクサイズの最適化（2秒）
-   - ストリーミングの並列処理
-   - キャッシュの活用
-
-2. **描画**
-   - オフスクリーンキャンバスの使用
-   - パーツのプリレンダリング
-   - 描画呼び出しのバッチ処理
-
-3. **メモリ管理**
-   - 不要なオーディオデータの解放
-   - イベントリスナーのクリーンアップ
-   - ガベージコレクションのトリガー
+- フレーム処理は軽量レンダリングを優先し、入力・描画の体感を切れ目なく維持する。
+- 転写失敗やAPI遅延時でも、UIがフリーズしないことを優先する。
+- 建築結果ログは履歴長を制限し、描画負荷を抑える。
 
 ## 9. セキュリティ設計
 
-### 9.1 セキュリティ要件
-- APIキーの安全な管理
-- ユーザーデータの保護
-- XSS対策
-- CSRF対策
-
-### 9.2 実装方針
-1. **APIキー管理**
-   - プロキシサーバー経由でのアクセス
-   - クライアントサイドでのキーの直接使用禁止
-   - 環境変数による管理
-
-2. **データ保護**
-   - ローカルストレージの使用制限
-   - セッションデータの暗号化
-   - データの定期的なクリア
-
-3. **入力検証**
-   - ユーザー入力のサニタイズ
-   - APIレスポンスの検証
-   - エラーメッセージのマスク
+- APIキーはブラウザへ直接埋め込まず、プロキシ経由で運用する方針を維持。
+- 音声入力と API 通信を分離し、必要最小情報のみをやり取りする。
+- UI側表示文字列は最小限に制限し、想定外の長大入力に対して切り捨てを行う。
 
 ## 10. 依存関係
 
 ### 10.1 外部依存
-- Mistral Voxtral API
-- ElevenLabs API
-- ブラウザのWeb Audio API
-- ブラウザのMediaDevices API
+- Mistral Voxtral API（音声文字起こし）
+- ブラウザ: `MediaDevices`, `MediaRecorder`, `Canvas API`
 
 ### 10.2 内部依存
-```
-音声認識モジュール
-   │
-   ▼
-建築理解エンジン ← ワーカープロファイル
-   │
-   ▼
-建築生成システム
-   │
-   ▼
-音声合成モジュール → ElevenLabs API
-   │
-   ▼
-UI/UXモジュール → ユーザーインタラクション
-```
+- `voxtral.js`（音声入力層）
+- `game-commands.js`（コマンド解釈・割当）
+- `game-engine.js`（状態更新と描画）
+- `game-data.js`（定数・NPC/部品データ）
 
 ---
 
 **文書管理**
 - 作成日: 2024-02-20
-- 最終更新日: 2024-02-20
-- バージョン: 1.0
+- 最終更新日: 2026-03-01
+- バージョン: 1.1
 - 状態: ドラフト
-- 参照文書: プロダクト要求定義書 (PRD) v1.0
+- 参照文書: `docs/product-requirements.md`
