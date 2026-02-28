@@ -4,17 +4,11 @@ const resultToggleButton = document.getElementById('toggle-command-result');
 
 const W = canvas.width;
 const H = canvas.height;
-const GRAVITY = 1400;
-const JUMP = 460;
 
 const WORLD_W = 3200;
 const FLOOR_Y = 250;
-const PLAYER_SPEED = 95;
-const FINISH_X = WORLD_W - 120;
 const HOUSE_REVEAL_SPEED = 1040;
 const HOUSE_REVEAL_TARGET_OFFSET = 0.30;
-
-const keys = new Set();
 
 const palette = {
   skyTop: '#5fb4ff',
@@ -75,14 +69,7 @@ const player = {
   y: FLOOR_Y - 30,
   w: 16,
   h: 30,
-  vx: 0,
-  vy: 0,
-  onGround: true,
   facing: 1,
-  walkPhase: 0,
-  animationIdle: 0,
-  lives: 3,
-  dead: false,
 };
 
 const COMMAND_LINE = {

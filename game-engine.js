@@ -1,7 +1,5 @@
 function resetGame() {
   clear = false;
-  player.dead = false;
-  player.lives = 3;
   addMessage('2D Dot Meadow - リトライ可能');
   resetPlayer();
   resetHouseBuildProgress();
@@ -23,53 +21,7 @@ function resetGame() {
 function resetPlayer() {
   player.x = 120;
   player.y = FLOOR_Y - player.h;
-  player.vx = 0;
-  player.vy = 0;
-  player.onGround = true;
   player.facing = 1;
-  player.walkPhase = 0;
-}
-
-function updatePlayer(dt) {
-  if (clear || player.dead) return;
-
-  let targetVx = 0;
-  if (keys.has('ArrowLeft') || keys.has('KeyA')) {
-    targetVx = -PLAYER_SPEED;
-    player.facing = -1;
-  } else if (keys.has('ArrowRight') || keys.has('KeyD')) {
-    targetVx = PLAYER_SPEED;
-    player.facing = 1;
-  }
-
-  player.vx += (targetVx - player.vx) * Math.min(1, dt * 12);
-  if (Math.abs(player.vx) < 2) player.vx = 0;
-
-  player.vy += GRAVITY * dt;
-  player.y += player.vy * dt;
-
-  player.x += player.vx * dt;
-  player.onGround = false;
-  if (player.y + player.h >= FLOOR_Y) {
-    player.y = FLOOR_Y - player.h;
-    player.vy = 0;
-    player.onGround = true;
-  }
-
-  player.x = clamp(player.x, 0, WORLD_W - player.w);
-
-  player.walkPhase += Math.abs(player.vx) * dt * 0.12;
-  player.animationIdle = (player.animationIdle + dt * 2.2) % 1000;
-
-  if (player.x > FINISH_X && !clear) {
-    clear = true;
-    addMessage('草原の端に到達！ R で再挑戦');
-    
-    // 音声入力を自動で停止
-    if (typeof window.stopVoxtralMic === 'function') {
-      window.stopVoxtralMic();
-    }
-  }
 }
 
 function updateNpcs(dt) {
@@ -549,7 +501,6 @@ function draw() {
       w: player.w,
       h: player.h,
       facing: player.facing,
-      walkPhase: player.walkPhase,
       isListening: heroListening,
       type: 'human',
       isHero: true,
@@ -577,9 +528,6 @@ function draw() {
 
 function update(dt) {
   if (!clear) {
-    if (!houseRevealActive) {
-      updatePlayer(dt);
-    }
     updateNpcs(dt);
     checkHouseRevealTrigger();
   }
@@ -602,7 +550,6 @@ if (typeof window.setupVoxtralIntegration === 'function') {
     getState: () => ({
       playerX: Math.floor(player.x),
       playerY: Math.floor(player.y),
-      lives: player.lives,
       clear,
       npcCount: npcs.length,
       enemyCount: npcs.length,
@@ -628,9 +575,6 @@ window.render_game_to_text = () =>
     player: {
       x: Math.floor(player.x),
       y: Math.floor(player.y),
-      vx: Number(player.vx.toFixed(2)),
-      vy: Number(player.vy.toFixed(2)),
-      onGround: player.onGround,
     },
     npcs: npcs.map((n) => ({
       id: n.id,
@@ -653,22 +597,10 @@ window.advanceTime = (ms) => {
 };
 
 window.addEventListener('keydown', (e) => {
-  keys.add(e.code);
-  if (e.code === 'Space' || e.code === 'KeyZ') {
-    if (player.onGround && !clear) {
-      player.vy = -JUMP;
-      player.onGround = false;
-    }
-    e.preventDefault();
-  }
   if (e.code === 'KeyR') {
     e.preventDefault();
     resetGame();
   }
-});
-
-window.addEventListener('keyup', (e) => {
-  keys.delete(e.code);
 });
 
 resetGame();
