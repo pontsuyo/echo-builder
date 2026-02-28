@@ -1,13 +1,11 @@
 (function () {
   const micButton = document.getElementById('ask-voxtral-mic');
-  const CHAT_MODEL_CANDIDATES = ['mistral-small-latest', 'mistral-small'];
   const VOXTRAL_AUDIO_MODEL = 'voxtral-mini-latest';
   const AUDIO_SEND_NATIVE_FIRST = true;
   const AUDIO_SEND_WAV_FALLBACK = true;
   const AUDIO_MODEL_CANDIDATES = [VOXTRAL_AUDIO_MODEL];
   const USE_PCM_LIVE_CAPTURE = true;
   const PCM_LIVE_AS_LIVE_SOURCE = true;
-  const CHAT_ENDPOINT_PATH = '/v1/chat/completions';
   const AUDIO_ENDPOINT_PATH = '/v1/audio/transcriptions';
   const MIC_TIMESLICE_MS = 1400;
   const MIC_STOP_FLUSH_DELAY_MS = 120;
@@ -40,17 +38,6 @@
     return `${noHash}#stream`;
   }
 
-  const CHAT_API = {
-    endpoint:
-      buildEndpoint({
-        explicit: window.__MISTRAL_API_URL,
-        proxy: window.__MISTRAL_PROXY_URL,
-        fallback: `https://api.mistral.ai${CHAT_ENDPOINT_PATH}`,
-        path: CHAT_ENDPOINT_PATH,
-      }),
-    apiKey: window.__MISTRAL_API_KEY || '',
-    model: window.__MISTRAL_API_MODEL || CHAT_MODEL_CANDIDATES[0],
-  };
   const AUDIO_API = {
       endpoint:
       withDocStreamAnchor(
@@ -145,24 +132,6 @@
     }
   }
 
-  /**
-   * Check if voice input is currently active
-   * @returns {boolean} True if microphone is active
-   */
-  function isVoiceInputActive() {
-    return isMicActive();
-  }
-
-  /**
-   * Stop voice input if it's active
-   * This function provides a public interface for the game engine to stop voice input
-   */
-  async function stopVoiceInput() {
-    if (isVoiceInputActive()) {
-      await stopMicCapture({ finalize: true });
-    }
-  }
-
   const micMimeTypes = [
     'audio/mp4',
     'audio/ogg;codecs=opus',
@@ -202,40 +171,6 @@
   function logDebug(...args) {
     if (!ENABLE_DEBUG_LOG) return;
     console.debug('[Voxtral]', ...args);
-  }
-
-  function getGameStateText() {
-    const state = gameApi && typeof gameApi.getState === 'function' ? gameApi.getState() : {};
-    return `x=${state.playerX ?? '?'}, y=${state.playerY ?? '?'}, lives=${state.lives ?? '?'}, clear=${state.clear ?? '?'}, enemies=${state.enemyCount ?? 0}`;
-  }
-
-  function buildPrompt(extraUserPrompt = '') {
-    const base =
-      'あなたは2Dドット風アクションゲームのゲーム内アシスタントです。短く実用的なヒントを1つ日本語で返してください。';
-    const status = getGameStateText();
-    if (extraUserPrompt) {
-      return `${base}\n状態: ${status}\nプレイヤーの追加入力: ${extraUserPrompt}`;
-    }
-    return `${base}\n状態: ${status}`;
-  }
-
-  function getChatModelCandidates() {
-    return uniqueFromList([CHAT_API.model, ...CHAT_MODEL_CANDIDATES]);
-  }
-
-  function formatRequestPayload(extraUserPrompt = '', model = CHAT_API.model) {
-    return {
-      model,
-      messages: [
-        {
-          role: 'user',
-          content: buildPrompt(extraUserPrompt),
-        },
-      ],
-      max_tokens: 120,
-      temperature: 0.6,
-      stream: true,
-    };
   }
 
   function toHeaderObj(headers) {
@@ -762,16 +697,6 @@
     return doneText;
   }
 
-  function extractChatText(data) {
-    return (
-      data?.choices?.[0]?.delta?.content ??
-      data?.choices?.[0]?.text ??
-      data?.choices?.[0]?.message?.content ??
-      data?.delta?.content ??
-      ''
-    );
-  }
-
   function extractTranscriptionText(data) {
     return (
       data?.text ??
@@ -939,143 +864,6 @@
 
   function mergeStreamingChunkText(currentText, incomingText) {
     return mergeTranscriptText(incomingText, currentText);
-  }
-
-  async function requestVoxtralHint(extraUserPrompt = '') {
-    if (isRequesting) return;
-    if (!isConfigReady()) {
-      postMessage('Voxtral未設定: window.__MISTRAL_API_KEY または window.__MISTRAL_PROXY_URL を設定してください。');
-      return;
-    }
-    if (!canSendRequest()) {
-      postMessage('Voxtral連携APIがゲーム本体に接続されていません。');
-      return;
-    }
-
-    isRequesting = true;
-    postMessage('Voxtralに問い合わせ中...');
-
-    try {
-      const useProxy = Boolean(window.__MISTRAL_PROXY_URL);
-      const models = getChatModelCandidates();
-      let res = null;
-
-      for (let i = 0; i < models.length; i += 1) {
-        const model = models[i];
-        const headers = {
-          'Content-Type': 'application/json',
-        };
-        if (!useProxy) {
-          headers.Authorization = `Bearer ${CHAT_API.apiKey}`;
-        }
-        const requestPayload = formatRequestPayload(extraUserPrompt, model);
-        const debugHeaders = {
-          ...headers,
-        };
-        if (debugHeaders.Authorization) {
-          debugHeaders.Authorization = 'Bearer ***';
-        }
-        logDebug('request start', {
-          type: 'chat',
-          attempt: i + 1,
-          model,
-          url: CHAT_API.endpoint,
-          useProxy,
-          headers: debugHeaders,
-          payload: requestPayload,
-        });
-
-        res = await fetch(CHAT_API.endpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(requestPayload),
-        });
-
-        if (!res.ok) {
-          const errorBodyText = await res.text().catch(() => '');
-          let errorBody = null;
-          try {
-            errorBody = errorBodyText ? JSON.parse(errorBodyText) : null;
-          } catch {
-            errorBody = null;
-          }
-
-          const detail =
-            errorBody?.error?.message ||
-            errorBody?.message ||
-            (typeof errorBodyText === 'string' && errorBodyText.length
-              ? errorBodyText
-              : 'No error detail');
-
-          console.error('[Voxtral] request failed', {
-            type: 'chat',
-            status: res.status,
-            statusText: res.statusText,
-            url: res.url,
-            headers: toHeaderObj(res.headers),
-            body: errorBodyText,
-          });
-
-          logDebug('chat request failed detail', {
-            attempt: i + 1,
-            model,
-            detail,
-          });
-
-          if (isInvalidModelError(res.status, detail) && i + 1 < models.length) {
-            logDebug('chat model fallback retry', {
-              fromModel: model,
-              toModel: models[i + 1],
-            });
-            continue;
-          }
-
-          throw new Error(`HTTP ${res.status}: ${detail}`);
-        }
-
-        break;
-      }
-
-      if (!res) {
-        throw new Error('チャットAPIのレスポンスがありません');
-      }
-
-      logDebug('response ok', {
-        type: 'chat',
-        status: res.status,
-        headers: toHeaderObj(res.headers),
-      });
-
-      let streamed = '';
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('text/event-stream')) {
-        streamed = await readStreamingText(res, (draft) => {
-          postMessage(`AIヒント: ${draft}`);
-        }, extractChatText);
-      } else {
-        const data = await res.json();
-        streamed =
-          data?.choices?.[0]?.message?.content ??
-          data?.choices?.[0]?.text ??
-          data?.output ??
-          data?.text ??
-          data?.message ??
-          '';
-        logDebug('non-stream response', { type: 'chat', data });
-      }
-
-      if (typeof streamed !== 'string' || !streamed.trim()) {
-        throw new Error('AIレスポンスの形式が想定外です');
-      }
-
-      postMessage(`AIヒント: ${streamed.trim()}`);
-    } catch (err) {
-      const message = `Voxtral呼び出し失敗: ${String(err.message || err)}`;
-      console.error('[Voxtral] Failed', err);
-      postMessage(message);
-    } finally {
-      isRequesting = false;
-    }
   }
 
   function appendTranscriptionText(chunkText, fromStream = false) {
@@ -2072,14 +1860,12 @@
     }
     gameApi = api;
     logDebug('voxtral endpoint config', {
-      chatEndpoint: CHAT_API.endpoint,
       audioEndpoint: AUDIO_API.endpoint,
       proxyAudio: !!window.__MISTRAL_PROXY_AUDIO_URL,
       proxyMain: !!window.__MISTRAL_PROXY_URL,
       useProxyMainAudio:
         Boolean(window.__MISTRAL_PROXY_AUDIO_URL || window.__MISTRAL_PROXY_URL),
       audioModelCandidates: getAudioModelCandidates(),
-      chatModelCandidates: getChatModelCandidates(),
     });
     if (!isConfigReady()) {
       postMessage('音声APIは未接続です: window.__MISTRAL_API_KEY または window.__MISTRAL_PROXY_URL を設定してください。');

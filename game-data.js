@@ -89,10 +89,8 @@ const COMMAND_LINE = {
   frontOffset: 20,
   spacing: 18,
   queueSpeed: 140,
-  returnSpeed: 140,
   workSpeed: 130,
   markDisplayMs: 1800,
-  resultPanelMaxLines: 12,
   textDisplayMaxLen: 24,
 };
 
@@ -100,7 +98,6 @@ const NPC_COMMAND_STATES = {
   QUEUED: 'queued',
   RETURN_HOME: 'returnHome',
   COMPLETED: 'completed',
-  ROAM: 'roam',
 };
 
 const NPC_ACTIVITY_STATES = {

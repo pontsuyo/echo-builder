@@ -597,10 +597,6 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 
-function updateFromVoxtral() {
-  // 予約。音声制御を将来差し込むためのフックのみ。
-}
-
 if (typeof window.setupVoxtralIntegration === 'function') {
   window.setupVoxtralIntegration({
     getState: () => ({

@@ -485,14 +485,13 @@ function receiveHeroCommand(text) {
     if (targetNpc.assignedBuildPartId === null) {
       targetNpc.isBuildCommand = false;
     }
-    targetNpc.commandMarkUntil = performance.now() + COMMAND_LINE.markDisplayMs;
   }
+  targetNpc.commandMarkUntil = targetNpc.isBuildCommand
+    ? performance.now() + COMMAND_LINE.markDisplayMs
+    : 0;
   // 家の横に立つ位置を計算（家の左側にNPCが並ぶ）
   targetNpc.commandTargetX = home.x - 50 - (targetNpc.id * 30);
   targetNpc.commandTargetY = FLOOR_Y - targetNpc.h;
-
-  
-  targetNpc.commandMarkUntil = targetNpc.isBuildCommand ? targetNpc.commandMarkUntil : 0;
   targetNpc.commandState = NPC_COMMAND_STATES.RETURN_HOME;
   targetNpc.lineSlot = -1;
 
