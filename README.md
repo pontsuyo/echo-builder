@@ -16,13 +16,20 @@
    python3 -m http.server 8000
    ```
 
-2. **プロキシサーバーを起動**（ポート8001）
+2. **環境変数を設定**
+   - `.env.example` をコピーして `.env` ファイルを作成し、Mistral APIキーを設定してください
+   ```bash
+   cp .env.example .env
+   # .env ファイルを編集して MISTRAL_API_KEY を設定
+   ```
+
+3. **プロキシサーバーを起動**（ポート8001）
    ```bash
    source .venv/bin/activate  # 仮想環境をアクティベート
    python3 mistral_proxy.py
    ```
 
-3. **ブラウザで開く**
+4. **ブラウザで開く**
    - `http://localhost:8000/` にアクセス
    - テストボタンを使って音声認識をテスト
 
@@ -76,7 +83,10 @@
 ```bash
 cd /Users/uchida/code/hackason-mistral/2dgame-mock
 python3 -m pip install -r requirements-proxy.txt
-export MISTRAL_API_KEY=YOUR_MISTRAL_API_KEY
+# .env ファイルを作成して MISTRAL_API_KEY を設定
+cp .env.example .env
+# .env ファイルを編集して MISTRAL_API_KEY を設定
+source .venv/bin/activate
 python3 mistral_proxy.py
 ```
 
@@ -92,11 +102,13 @@ python3 mistral_proxy.py
 </script>
 ```
 
-環境変数:
+環境変数（`.env` ファイルで設定可能）：
+- `MISTRAL_API_KEY`（必須、Mistral APIキー）
 - `MISTRAL_API_BASE`（任意、既定: `https://api.mistral.ai`）
 - `MISTRAL_PROXY_HOST`（任意、既定: `127.0.0.1`）
 - `MISTRAL_PROXY_PORT`（任意、既定: `8001`）
 - `MISTRAL_PROXY_CORS_ORIGIN`（任意、既定: `*`）
+- `MISTRAL_PROXY_LOG_LEVEL`（任意、既定: `DEBUG`）
 
 
 
