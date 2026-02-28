@@ -3,6 +3,7 @@ function resetGame() {
   addMessage('2D Dot Meadow - リトライ可能');
   resetPlayer();
   selectRandomGoal(Date.now());
+  heroSpeechBubbleUnlocked = false;
   resetHouseBuildProgress();
   resetCommandSession();
   resetCommandResultLog();
@@ -618,7 +619,7 @@ function drawDotBody(x, y, sprite = {}, opacity = 1.0) {
 function drawPlayerSpeechBubble(anchorX, topY, isListening = false, opacity = 1.0, imageState = null) {
   const bubbleW = 105;
   const bubbleH = 96;
-  const radius = 4;
+  const radius = 16;
   const tailTipY = topY - 1;
   const tailWidth = 6;
   const bubbleX = anchorX - bubbleW / 2;
@@ -661,13 +662,20 @@ function drawPlayerSpeechBubble(anchorX, topY, isListening = false, opacity = 1.
     ctx.stroke();
   }
 
-  ctx.beginPath();
-  ctx.moveTo(tailX - tailWidth / 2, by2);
-  ctx.lineTo(tailX + tailWidth / 2, by2);
-  ctx.lineTo(tailX, tailY);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
+  // 思考中の吹き出しらしく、小さい泡を頭方向に配置する
+  const tailBaseX = clamp(anchorX, bx + bubbleW * 0.30, bx + bubbleW * 0.70);
+  // 3つの円を配置する
+  const tailNodes = [
+    { x: tailBaseX, y: by2 + 6, r: 4 },
+    { x: tailBaseX + (anchorX - tailBaseX) * 0.55, y: by2 + 15, r: 3 },
+    { x: anchorX, y: Math.min(topY - 4, by2 + 24), r: 2 },
+  ];
+  for (const node of tailNodes) {
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
 
   if (!imageState || !imageState.image || imageState.failed) {
     const fallbackDotColor = isListening ? '#6f9ecf' : '#7a8fa4';
@@ -680,7 +688,8 @@ function drawPlayerSpeechBubble(anchorX, topY, isListening = false, opacity = 1.
       const bounce = isListening ? Math.max(0.5, 0.5 + Math.sin(basePhase + d * 1.6) * 0.5) : 1;
       const dotRadius = 1.5 * bounce;
       ctx.beginPath();
-      ctx.arc(tailX - 3 + dx, dotY, dotRadius, 0, Math.PI * 2);
+      // ctx.arc(tailX - 3 + dx, dotY, dotRadius, 0, Math.PI * 2);
+      ctx.arc(anchorX + dx, dotY, dotRadius, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1.0;
@@ -719,7 +728,7 @@ function drawPlayerSpeechBubble(anchorX, topY, isListening = false, opacity = 1.
     drawW = drawH * ratio;
   }
   const dx = imageArea.x + (imageArea.w - drawW) / 2;
-  const dy = imageArea.y + (imageArea.h - drawH) / 2;
+  const dy = imageArea.y + (imageArea.h - drawH) / 2 + 6;
   ctx.drawImage(img, dx, dy, drawW, drawH);
   ctx.globalAlpha = 1.0;
 }
@@ -785,6 +794,58 @@ function getFirstQueuedChild() {
 // グローバル関数としてエクスポート
 window.getFirstQueuedChild = getFirstQueuedChild;
 
+function shouldShowUninterpretedHint(npc, nowMs = performance.now()) {
+  if (!npc || !npc.isListeningToPlayer) return false;
+  if (String(npc.lastInterpretation || '').trim()) return false;
+
+  const listeningStartedAt = Number(npc.listeningStartedAt || 0);
+  if (!Number.isFinite(listeningStartedAt) || listeningStartedAt <= 0) return false;
+
+  const delayMs = Number(COMMAND_LINE.uninterpretedHintDelayMs || 5000);
+  return nowMs - listeningStartedAt >= delayMs;
+}
+
+function drawUninterpretedHintBubble(npc, sx, opacity = 1.0) {
+  const bubbleW = 16;
+  const bubbleH = 14;
+  const anchorX = sx + npc.w * 0.5;
+  const bx = clamp(Math.round(anchorX - bubbleW / 2), 2, W - bubbleW - 2);
+  const by = Math.round(npc.y - bubbleH - 14);
+  const tailBaseX = clamp(anchorX, bx + 4, bx + bubbleW - 4);
+  const tailTipY = npc.y - 5;
+
+  ctx.save();
+  ctx.globalAlpha = 0.95 * opacity;
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#2d4666';
+  ctx.lineWidth = 1;
+
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bubbleW, bubbleH, 5);
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    ctx.fillRect(bx, by, bubbleW, bubbleH);
+    ctx.strokeRect(bx + 0.5, by + 0.5, bubbleW - 1, bubbleH - 1);
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(tailBaseX - 2, by + bubbleH - 1);
+  ctx.lineTo(tailBaseX + 2, by + bubbleH - 1);
+  ctx.lineTo(anchorX, tailTipY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#1f2f45';
+  ctx.font = 'bold 11px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('?', bx + bubbleW / 2, by + bubbleH / 2 + 0.5);
+  ctx.restore();
+}
+
 function draw() {
   ctx.imageSmoothingEnabled = false;
   drawSky();
@@ -792,6 +853,7 @@ function draw() {
   drawHouse();
 
   // NPCを先に描画し、主人公は最後に描画して必ず見えるようにする
+  const nowMs = performance.now();
   const sortedNpcs = [...npcs].sort((a, b) => a.y + a.h - (b.y + b.h));
   for (const e of sortedNpcs) {
     const sx = e.x - cameraX;
@@ -818,6 +880,9 @@ function draw() {
     }, opacity);
 
     drawBuildMark(e, sx);
+    if (shouldShowUninterpretedHint(e, nowMs)) {
+      drawUninterpretedHintBubble(e, sx, opacity);
+    }
 
     // 解釈データを表示（家が映った後にのみ表示）
     if (houseRevealDone) {
@@ -885,7 +950,9 @@ function draw() {
     };
     drawDotBody(px, player.y, heroSprite);
 
-    const hasSpeechBubble = !clear || heroListening || Boolean(latestLiveTranscript && String(latestLiveTranscript).trim());
+    const hasSpeechBubble =
+      heroSpeechBubbleUnlocked
+      && (!clear || heroListening || Boolean(latestLiveTranscript && String(latestLiveTranscript).trim()));
     if (hasSpeechBubble) {
       drawPlayerSpeechBubble(
         px + player.w / 2,
@@ -977,6 +1044,8 @@ window.render_game_to_text = () =>
       x: Math.floor(n.x),
       y: Math.floor(n.y),
       state: n.state,
+      isListeningToPlayer: Boolean(n.isListeningToPlayer),
+      questionBubbleVisible: shouldShowUninterpretedHint(n),
     })),
     cameraX: Math.floor(cameraX),
     clear,

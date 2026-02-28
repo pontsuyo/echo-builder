@@ -5,6 +5,9 @@
   const testTwoDotsButton = document.getElementById('test-two-dots');
 
   function startMic() {
+    if (typeof window.unlockHeroSpeechBubble === 'function') {
+      window.unlockHeroSpeechBubble();
+    }
     if (typeof window.startVoxtralMic === 'function') {
       window.startVoxtralMic();
     }

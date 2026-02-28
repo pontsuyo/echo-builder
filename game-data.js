@@ -535,6 +535,7 @@ const COMMAND_LINE = {
   queueSpeed: 140,
   workSpeed: 130,
   markDisplayMs: 1800,
+  uninterpretedHintDelayMs: 5000,
   textDisplayMaxLen: 24,
 };
 
@@ -648,6 +649,7 @@ function createNpc(i) {
     assignedBuildPartId: null,
     buildQuantity: 1,
     isListeningToPlayer: false,
+    listeningStartedAt: 0,
     lastHeardText: '',
     lastInterpretation: '',
     commandTargetX: null,
@@ -678,6 +680,7 @@ let lastTime = performance.now();
 let liveTranscriptLine = '';
 let latestLiveTranscript = '';
 let heroListening = false;
+let heroSpeechBubbleUnlocked = false;
 let firstBuilderAudioPaused = false;
 
 function clamp(v, min, max) {
@@ -732,6 +735,7 @@ function resetNpcCommandState(npc) {
   npc.assignedBuildPartId = null;
   npc.buildQuantity = 1;
   npc.isListeningToPlayer = false;
+  npc.listeningStartedAt = 0;
 }
 
 window.selectRandomGoal = selectRandomGoal;

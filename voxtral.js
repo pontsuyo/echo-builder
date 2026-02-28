@@ -157,7 +157,7 @@
     if (!micButton) return;
     micActive = active;
     micButton.disabled = false;
-    micButton.textContent = active ? 'マイク停止' : 'マイク開始';
+    micButton.textContent = active ? 'マイク停止' : 'START';
   }
 
   function postMessage(text) {
@@ -1627,7 +1627,7 @@
       return;
     }
     if (isRequesting) {
-      postMessage('AI応答中は一時的にマイク開始をブロックします。');
+      postMessage('AI応答中は一時的にSTARTをブロックします。');
       return;
     }
     if (micActive) {

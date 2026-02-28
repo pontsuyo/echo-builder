@@ -235,7 +235,16 @@ function setLiveTranscript(text) {
 
 function setHeroListening(active) {
   heroListening = Boolean(active);
+  if (heroListening) {
+    unlockHeroSpeechBubble();
+  }
 }
+
+function unlockHeroSpeechBubble() {
+  heroSpeechBubbleUnlocked = true;
+}
+
+window.unlockHeroSpeechBubble = unlockHeroSpeechBubble;
 
 function isCommandSessionCompleted() {
   return (
@@ -329,11 +338,13 @@ function getEnglishLabel(japaneseLabel) {
 function setListeningNpc(nextNpc) {
   for (const npc of npcs) {
     npc.isListeningToPlayer = false;
+    npc.listeningStartedAt = 0;
   }
   if (!nextNpc) {
     return;
   }
   nextNpc.isListeningToPlayer = true;
+  nextNpc.listeningStartedAt = performance.now();
 }
 
 function isBuildingCommand(text) {
