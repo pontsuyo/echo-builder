@@ -150,7 +150,7 @@
 - Canvas本体（ゲーム表示）
 - ツールバー
   - `結果確認`（コマンド結果パネル表示）
-  - `マイク開始`（音声入力）
+  - `START`（音声入力）
   - 開発用テストボタン（3点）
 - 音声入力履歴（HUD）
 - コマンド結果パネル
@@ -165,7 +165,7 @@
 
 #### コントロール
 - 音声入力トリガ:
-  - `マイク開始` ボタン
+  - `START` ボタン
   - `M` キーによる開始/停止
 - キーボード移動（左右・ジャンプ）は本仕様から除外（実装対象外）
 
@@ -289,7 +289,7 @@
 | イベント名 | データ | 発火タイミング |
 |------------|--------|----------------|
 | `voice:transcript` | `{ text, isFinal }` | 転写結果更新時 |
-| `voice:toggle` | `{ active }` | マイク開始/停止時 |
+| `voice:toggle` | `{ active }` | START/停止時 |
 | `command:session.created` | `{ queueSize }` | 音声確定時にキューを新規作成した時 |
 | `command:session.assign` | `{ childId, isBuild, interpreted, quantity, preferredPartType }` | 子どもにコマンドを割当時 |
 | `command:session.next` | `{ nextChildId }` | 次の子どもへコマンド待ち時 |
