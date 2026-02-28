@@ -658,6 +658,17 @@ function resetGame() {
   resetHouseBuildProgress();
   resetCommandSession();
   resetCommandResultLog();
+  
+  // 初期状態で子供たちを整列させる
+  const ordered = getFrontOrderedNpcs();
+  for (let i = 0; i < ordered.length; i += 1) {
+    ordered[i].lineSlot = i;
+    ordered[i].commandState = 'queued';
+    ordered[i].vx = 0; // 移動を停止
+    ordered[i].state = 'idle'; // 歩行状態をアイドルに設定
+    ordered[i].x = getCommandLineX(i); // 整列位置に設定
+    ordered[i].y = FLOOR_Y - ordered[i].h;
+  }
 }
 
 function resetPlayer() {
@@ -1165,7 +1176,7 @@ window.addEventListener('keyup', (e) => {
   keys.delete(e.code);
 });
 
-resetPlayer();
+resetGame();
 addMessage('2D Dot Meadow - ゆっくり散歩するドット世界');
 requestAnimationFrame((now) => {
   lastTime = now;
