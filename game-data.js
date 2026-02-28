@@ -193,7 +193,7 @@ function createNpc(i) {
     outfit: ['#4b90ff', '#4ccf8f', '#ff8a5c'][i % 3],
     type: npcTypes[i % npcTypes.length],
     walkPhase: 0,
-    commandState: NPC_COMMAND_STATES.ROAM,
+    commandState: NPC_COMMAND_STATES.RETURN_HOME,
     lineSlot: -1,
     commandMarkUntil: 0,
     isBuildCommand: false,
@@ -252,7 +252,7 @@ function getHousePartLabel(type) {
 }
 
 function resetNpcCommandState(npc) {
-  npc.commandState = NPC_COMMAND_STATES.ROAM;
+  npc.commandState = NPC_COMMAND_STATES.RETURN_HOME;
   npc.commandMarkUntil = 0;
   npc.lineSlot = -1;
   npc.commandTargetX = null;

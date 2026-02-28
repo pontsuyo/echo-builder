@@ -97,7 +97,7 @@ function updateNpcs(dt) {
           const partName = getHousePartLabel(builtPart.type);
           addMessage(`子${npc.id} が家の${partName}を設置しました。`);
         }
-        npc.commandState = NPC_COMMAND_STATES.ROAM;
+        // ROAM状態を使用せず、RETURN_HOME状態を維持
         // 家の横に留まるため、minXとmaxXを現在位置付近に設定
         npc.minX = npc.x - 10;
         npc.maxX = npc.x + 10;
