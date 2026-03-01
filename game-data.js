@@ -30,6 +30,9 @@ const audioSendButton = document.getElementById('toggle-audio-send');
 if (audioSendButton) {
   testRelatedButtons.push(audioSendButton);
 }
+if (resultToggleButton) {
+  testRelatedButtons.push(resultToggleButton);
+}
 testRelatedButtons.push(...document.querySelectorAll('.test-button'));
 const childSpeechToggleButton = document.getElementById('toggle-child-speech');
 let showChildSpeech = typeof window.__ELEVENLABS_TTS_ENABLED === 'boolean'

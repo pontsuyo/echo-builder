@@ -330,7 +330,7 @@ function pauseMicForBuildAndResumeNextChild(nextHasTurn) {
 
 function updateCommandButtons() {
   if (!resultToggleButton) return;
-  resultToggleButton.textContent = showCommandResults ? 'Hide Log' : 'Show Log';
+  resultToggleButton.textContent = `command log: ${showCommandResults ? 'ON' : 'OFF'}`;
 }
 
 function ensureResultText(value, fallback = 'Not received') {
