@@ -60,7 +60,7 @@ const DEFAULT_ROOF_SHAPE = 'triangle';
 const DEFAULT_GOAL_POSITION_TOLERANCE = 8;
 
 const home = {
-  x: 1550,
+  x: 1000,
   w: 110,
   h: 68,
 };
