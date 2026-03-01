@@ -36,7 +36,7 @@
   />
 
   <text x="16" y="54" fill="#1f2f45" font-family="Courier New, monospace" font-size="26" font-weight="700" letter-spacing="1">Echo Builder</text>
-  <text x="16" y="84" fill="#3e5173" font-family="Courier New, monospace" font-size="14" font-weight="500">VOICE COMMAND HOUSE BUILDER</text>
+  <text x="16" y="84" fill="#3e5173" font-family="Courier New, monospace" font-size="14" font-weight="500">Speak to Build</text>
 
   <path d="M8 128 H512" stroke="#c5d9f2" stroke-width="2" stroke-dasharray="4 5" opacity="0.6" />
 </svg>
