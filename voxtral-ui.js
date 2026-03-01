@@ -110,13 +110,13 @@
 
   if (testRedRoofButton) {
     testRedRoofButton.addEventListener('click', () => {
-      sendTest('wav/build_a_red_roof.wav');
+      sendTest('wav/install_a_red_roof.mp3');
     });
   }
 
   if (testTwoWindowsButton) {
     testTwoWindowsButton.addEventListener('click', () => {
-      sendTest('wav/put_two_windows.wav');
+      sendTest('wav/add_two_windows.mp3');
     });
   }
 

@@ -534,12 +534,19 @@ function drawHousePart(part, sx, sy) {
       }
       return;
     }
-    for (let i = 0; i < 14; i += 1) {
-      const rowY = sy - 4 - i;
-      const rx = sx - 4 + i;
-      const rw = 6 + i * 2;
+
+    // triangle (default): centered apex + symmetric slopes like the goal bubble sample
+    const rows = 24;
+    const rowHeight = 2;
+    const roofBaseWidth = home.w + 16;
+    const roofCenterX = sx + home.w / 2;
+    for (let i = 0; i < rows; i += 1) {
+      const ratio = (i + 1) / rows;
+      const rowY = sy - 4 - rows * rowHeight + i * rowHeight;
+      const rowW = Math.max(2, Math.round(roofBaseWidth * ratio));
+      const rowX = Math.round(roofCenterX - rowW / 2);
       ctx.fillStyle = i === 0 ? '#9a352a' : palette.houseRoof;
-      ctx.fillRect(rx, rowY, rw, 4);
+      ctx.fillRect(rowX, rowY, rowW, rowHeight);
     }
     return;
   }
