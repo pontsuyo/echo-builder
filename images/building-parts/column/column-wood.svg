@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="96" viewBox="0 0 48 96" role="img" aria-labelledby="title desc">
+  <title id="title">Column Wood</title>
+  <desc id="desc">Building part pattern: Column Wood</desc>
+  <rect x="10" y="10" width="28" height="76" fill="#b78558" stroke="#5f3f26" stroke-width="2"/>
+  <rect x="6" y="6" width="36" height="10" fill="#9f6f47" stroke="#5f3f26" stroke-width="2"/>
+  <rect x="6" y="82" width="36" height="10" fill="#9f6f47" stroke="#5f3f26" stroke-width="2"/>
+  <g stroke="#704b2d" stroke-width="1.8" opacity="0.75">
+    <line x1="16" y1="16" x2="16" y2="82"/><line x1="24" y1="16" x2="24" y2="82"/><line x1="32" y1="16" x2="32" y2="82"/>
+  </g>
+  <g fill="#704b2d" opacity="0.6">
+    <ellipse cx="18" cy="34" rx="1.5" ry="1"/><ellipse cx="30" cy="56" rx="1.5" ry="1"/>
+  </g>
+</svg>

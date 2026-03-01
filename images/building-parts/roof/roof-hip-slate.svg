@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="72" viewBox="0 0 120 72" role="img" aria-labelledby="title desc">
+  <title id="title">Roof Hip Slate</title>
+  <desc id="desc">Building part pattern: Roof Hip Slate</desc>
+  <polygon points="8,50 60,14 112,50 96,58 24,58" fill="#6b7486" stroke="#353b47" stroke-width="2"/>
+  <polyline points="24,58 60,30 96,58" fill="none" stroke="#495161" stroke-width="3"/>
+  <line x1="34" y1="48" x2="86" y2="48" stroke="#dde3ef" stroke-width="2"/>
+  <line x1="40" y1="40" x2="80" y2="40" stroke="#dde3ef" stroke-width="2" opacity="0.85"/>
+</svg>

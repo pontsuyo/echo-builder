@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="72" viewBox="0 0 120 72" role="img" aria-labelledby="title desc">
+  <title id="title">Roof Gable Brick</title>
+  <desc id="desc">Building part pattern: Roof Gable Brick</desc>
+  <polygon points="8,58 44,20 80,58" fill="#bb5b3f" stroke="#5e261b" stroke-width="2"/>
+  <polygon points="40,58 76,20 112,58" fill="#8d3a2b" stroke="#5e261b" stroke-width="2"/>
+  <line x1="60" y1="16" x2="60" y2="58" stroke="#ffd9cf" stroke-width="3"/>
+  <line x1="20" y1="50" x2="52" y2="50" stroke="#ffd9cf" stroke-width="2"/>
+  <line x1="68" y1="50" x2="100" y2="50" stroke="#ffd9cf" stroke-width="2"/>
+</svg>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="96" viewBox="0 0 64 96" role="img" aria-labelledby="title desc">
+  <title id="title">Door Ornate Navy</title>
+  <desc id="desc">Building part pattern: Door Ornate Navy</desc>
+  <rect x="10" y="8" width="44" height="80" rx="2" fill="#344b78" stroke="#213150" stroke-width="2"/>
+  <path d="M20 24 Q32 14 44 24" fill="none" stroke="#7f9bcf" stroke-width="2"/>
+  <rect x="18" y="28" width="28" height="16" fill="#7f9bcf" opacity="0.55"/>
+  <rect x="18" y="48" width="28" height="28" fill="#7f9bcf" opacity="0.5"/>
+  <circle cx="32" cy="62" r="6" fill="none" stroke="#7f9bcf" stroke-width="2"/>
+  <circle cx="40" cy="50" r="2" fill="#f0e2a6"/>
+</svg>

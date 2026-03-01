@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="72" viewBox="0 0 120 72" role="img" aria-labelledby="title desc">
+  <title id="title">Roof Shed Orange</title>
+  <desc id="desc">Building part pattern: Roof Shed Orange</desc>
+  <polygon points="8,58 8,36 112,16 112,58" fill="#d37b39" stroke="#743a16" stroke-width="2"/>
+  <line x1="8" y1="44" x2="112" y2="24" stroke="#a45623" stroke-width="3"/>
+  <line x1="8" y1="52" x2="112" y2="32" stroke="#ffe1c9" stroke-width="2"/>
+  <line x1="24" y1="58" x2="24" y2="36" stroke="#ffe1c9" stroke-width="2" opacity="0.8"/>
+  <line x1="48" y1="58" x2="48" y2="32" stroke="#ffe1c9" stroke-width="2" opacity="0.8"/>
+  <line x1="72" y1="58" x2="72" y2="28" stroke="#ffe1c9" stroke-width="2" opacity="0.8"/>
+</svg>

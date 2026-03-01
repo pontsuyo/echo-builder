@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="72" viewBox="0 0 120 72" role="img" aria-labelledby="title desc">
+  <title id="title">Roof Flat Blue</title>
+  <desc id="desc">Building part pattern: Roof Flat Blue</desc>
+  <rect x="8" y="30" width="104" height="28" rx="2" fill="#5e8fc9" stroke="#23466f" stroke-width="2"/>
+  <rect x="8" y="22" width="104" height="10" rx="2" fill="#2f5f96"/>
+  <line x1="14" y1="42" x2="106" y2="42" stroke="#d9edff" stroke-width="2"/>
+  <line x1="14" y1="50" x2="106" y2="50" stroke="#d9edff" stroke-width="2" opacity="0.8"/>
+</svg>

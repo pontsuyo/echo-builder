@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1510" viewBox="0 0 720 1510">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fbff"/>
+      <stop offset="100%" stop-color="#eef3f8"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="1510" fill="url(#bg)"/>
+  <text x="20" y="36" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#1f2937">Building Parts SVG Catalog</text>
+  <text x="20" y="58" font-family="Arial, sans-serif" font-size="13" fill="#4b5563">Generated patterns: 38</text>
+  <g transform="translate(20,80)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Roof</text>
+    <image href="roof/roof-triangle-red.svg" x="25" y="20" width="120" height="72"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">roof-triangle-red</text>
+  </g>
+  <g transform="translate(190,80)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Roof</text>
+    <image href="roof/roof-triangle-blue.svg" x="25" y="20" width="120" height="72"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">roof-triangle-blue</text>
+  </g>
+  <g transform="translate(360,80)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Roof</text>
+    <image href="roof/roof-flat-blue.svg" x="25" y="20" width="120" height="72"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">roof-flat-blue</text>
+  </g>
+  <g transform="translate(530,80)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Roof</text>
+    <image href="roof/roof-round-green.svg" x="25" y="20" width="120" height="72"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">roof-round-green</text>
+  </g>
+  <g transform="translate(20,220)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Roof</text>
+    <image href="roof/roof-gable-brick.svg" x="25" y="20" width="120" height="72"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">roof-gable-brick</text>
+  </g>
+  <g transform="translate(190,220)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Roof</text>
+    <image href="roof/roof-hip-slate.svg" x="25" y="20" width="120" height="72"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">roof-hip-slate</text>
+  </g>
+  <g transform="translate(360,220)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Roof</text>
+    <image href="roof/roof-shed-orange.svg" x="25" y="20" width="120" height="72"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">roof-shed-orange</text>
+  </g>
+  <g transform="translate(530,220)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Roof</text>
+    <image href="roof/roof-solar-flat.svg" x="25" y="20" width="120" height="72"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">roof-solar-flat</text>
+  </g>
+  <g transform="translate(20,360)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Roof</text>
+    <image href="roof/roof-mansard-purple.svg" x="25" y="20" width="120" height="72"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">roof-mansard-purple</text>
+  </g>
+  <g transform="translate(190,360)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Wall</text>
+    <image href="wall/wall-plaster-cream.svg" x="25" y="20" width="120" height="80"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">wall-plaster-cream</text>
+  </g>
+  <g transform="translate(360,360)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Wall</text>
+    <image href="wall/wall-brick-red.svg" x="25" y="20" width="120" height="80"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">wall-brick-red</text>
+  </g>
+  <g transform="translate(530,360)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Wall</text>
+    <image href="wall/wall-stone-gray.svg" x="25" y="20" width="120" height="80"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">wall-stone-gray</text>
+  </g>
+  <g transform="translate(20,500)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Wall</text>
+    <image href="wall/wall-timber-brown.svg" x="25" y="20" width="120" height="80"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">wall-timber-brown</text>
+  </g>
+  <g transform="translate(190,500)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Wall</text>
+    <image href="wall/wall-panel-blue.svg" x="25" y="20" width="120" height="80"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">wall-panel-blue</text>
+  </g>
+  <g transform="translate(360,500)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Wall</text>
+    <image href="wall/wall-adobe-sand.svg" x="25" y="20" width="120" height="80"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">wall-adobe-sand</text>
+  </g>
+  <g transform="translate(530,500)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Wall</text>
+    <image href="wall/wall-concrete-light.svg" x="25" y="20" width="120" height="80"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">wall-concrete-light</text>
+  </g>
+  <g transform="translate(20,640)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Wall</text>
+    <image href="wall/wall-tile-mint.svg" x="25" y="20" width="120" height="80"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">wall-tile-mint</text>
+  </g>
+  <g transform="translate(190,640)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Door</text>
+    <image href="door/door-classic-brown.svg" x="53" y="20" width="64" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">door-classic-brown</text>
+  </g>
+  <g transform="translate(360,640)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Door</text>
+    <image href="door/door-arch-green.svg" x="53" y="20" width="64" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">door-arch-green</text>
+  </g>
+  <g transform="translate(530,640)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Door</text>
+    <image href="door/door-double-charcoal.svg" x="53" y="20" width="64" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">door-double-charcoal</text>
+  </g>
+  <g transform="translate(20,780)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Door</text>
+    <image href="door/door-glass-modern.svg" x="53" y="20" width="64" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">door-glass-modern</text>
+  </g>
+  <g transform="translate(190,780)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Door</text>
+    <image href="door/door-barn-red.svg" x="53" y="20" width="64" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">door-barn-red</text>
+  </g>
+  <g transform="translate(360,780)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Door</text>
+    <image href="door/door-ornate-navy.svg" x="53" y="20" width="64" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">door-ornate-navy</text>
+  </g>
+  <g transform="translate(530,780)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Window</text>
+    <image href="window/window-square-white.svg" x="53" y="20" width="64" height="64"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">window-square-white</text>
+  </g>
+  <g transform="translate(20,920)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Window</text>
+    <image href="window/window-round-wood.svg" x="53" y="20" width="64" height="64"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">window-round-wood</text>
+  </g>
+  <g transform="translate(190,920)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Window</text>
+    <image href="window/window-bay-blue.svg" x="53" y="20" width="64" height="64"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">window-bay-blue</text>
+  </g>
+  <g transform="translate(360,920)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Window</text>
+    <image href="window/window-lattice-cream.svg" x="53" y="20" width="64" height="64"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">window-lattice-cream</text>
+  </g>
+  <g transform="translate(530,920)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Window</text>
+    <image href="window/window-tall-modern.svg" x="53" y="20" width="64" height="64"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">window-tall-modern</text>
+  </g>
+  <g transform="translate(20,1060)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Window</text>
+    <image href="window/window-shutter-green.svg" x="53" y="20" width="64" height="64"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">window-shutter-green</text>
+  </g>
+  <g transform="translate(190,1060)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Chimney</text>
+    <image href="chimney/chimney-brick.svg" x="61" y="20" width="48" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">chimney-brick</text>
+  </g>
+  <g transform="translate(360,1060)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Chimney</text>
+    <image href="chimney/chimney-stone.svg" x="61" y="20" width="48" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">chimney-stone</text>
+  </g>
+  <g transform="translate(530,1060)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Chimney</text>
+    <image href="chimney/chimney-metal.svg" x="61" y="20" width="48" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">chimney-metal</text>
+  </g>
+  <g transform="translate(20,1200)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Chimney</text>
+    <image href="chimney/chimney-wide-clay.svg" x="61" y="20" width="48" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">chimney-wide-clay</text>
+  </g>
+  <g transform="translate(190,1200)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Column</text>
+    <image href="column/column-stone.svg" x="61" y="20" width="48" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">column-stone</text>
+  </g>
+  <g transform="translate(360,1200)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Column</text>
+    <image href="column/column-wood.svg" x="61" y="20" width="48" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">column-wood</text>
+  </g>
+  <g transform="translate(530,1200)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Column</text>
+    <image href="column/column-metal.svg" x="61" y="20" width="48" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">column-metal</text>
+  </g>
+  <g transform="translate(20,1340)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Column</text>
+    <image href="column/column-classic-white.svg" x="61" y="20" width="48" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">column-classic-white</text>
+  </g>
+  <g transform="translate(190,1340)">
+    <rect width="158" height="128" rx="10" fill="#ffffff" stroke="#d9dde5"/>
+    <text x="12" y="18" font-family="Arial, sans-serif" font-size="12" fill="#3b4250">Column</text>
+    <image href="column/column-brick.svg" x="61" y="20" width="48" height="96"/>
+    <text x="12" y="116" font-family="Arial, sans-serif" font-size="9.5" fill="#5f697a">column-brick</text>
+  </g>
+</svg>

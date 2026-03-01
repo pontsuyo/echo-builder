@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="96" viewBox="0 0 48 96" role="img" aria-labelledby="title desc">
+  <title id="title">Chimney Stone</title>
+  <desc id="desc">Building part pattern: Chimney Stone</desc>
+  <rect x="11" y="18" width="26" height="68" fill="#b7bcc1" stroke="#5a6169" stroke-width="2"/>
+  <rect x="7" y="10" width="34" height="10" fill="#939aa2" stroke="#5a6169" stroke-width="2"/>
+  <g fill="none" stroke="#6d757d" stroke-width="1.4" opacity="0.8">
+    <polygon points="14,26 22,24 24,32 16,34"/><polygon points="25,24 34,23 35,32 26,33"/>
+    <polygon points="14,38 24,36 26,46 16,48"/><polygon points="26,36 35,35 36,46 27,47"/>
+    <polygon points="14,50 23,49 25,60 16,61"/><polygon points="26,49 35,48 36,60 27,60"/>
+    <polygon points="14,62 23,61 25,72 16,73"/><polygon points="26,61 35,60 36,72 27,72"/>
+  </g>
+</svg>

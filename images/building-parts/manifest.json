@@ -1,0 +1,247 @@
+{
+  "version": "1.0.0",
+  "generatedDate": "2026-03-01",
+  "description": "Building part SVG variants for house assembly.",
+  "categories": {
+    "roof": [
+      {
+        "id": "roof-triangle-red",
+        "file": "roof/roof-triangle-red.svg",
+        "type": "triangle",
+        "name": "Roof Triangle Red"
+      },
+      {
+        "id": "roof-triangle-blue",
+        "file": "roof/roof-triangle-blue.svg",
+        "type": "triangle",
+        "name": "Roof Triangle Blue"
+      },
+      {
+        "id": "roof-flat-blue",
+        "file": "roof/roof-flat-blue.svg",
+        "type": "flat",
+        "name": "Roof Flat Blue"
+      },
+      {
+        "id": "roof-round-green",
+        "file": "roof/roof-round-green.svg",
+        "type": "round",
+        "name": "Roof Round Green"
+      },
+      {
+        "id": "roof-gable-brick",
+        "file": "roof/roof-gable-brick.svg",
+        "type": "gable",
+        "name": "Roof Gable Brick"
+      },
+      {
+        "id": "roof-hip-slate",
+        "file": "roof/roof-hip-slate.svg",
+        "type": "hip",
+        "name": "Roof Hip Slate"
+      },
+      {
+        "id": "roof-shed-orange",
+        "file": "roof/roof-shed-orange.svg",
+        "type": "shed",
+        "name": "Roof Shed Orange"
+      },
+      {
+        "id": "roof-solar-flat",
+        "file": "roof/roof-solar-flat.svg",
+        "type": "solar-flat",
+        "name": "Roof Solar Flat"
+      },
+      {
+        "id": "roof-mansard-purple",
+        "file": "roof/roof-mansard-purple.svg",
+        "type": "mansard",
+        "name": "Roof Mansard Purple"
+      }
+    ],
+    "wall": [
+      {
+        "id": "wall-plaster-cream",
+        "file": "wall/wall-plaster-cream.svg",
+        "type": "plaster",
+        "name": "Wall Plaster Cream"
+      },
+      {
+        "id": "wall-brick-red",
+        "file": "wall/wall-brick-red.svg",
+        "type": "brick",
+        "name": "Wall Brick Red"
+      },
+      {
+        "id": "wall-stone-gray",
+        "file": "wall/wall-stone-gray.svg",
+        "type": "stone",
+        "name": "Wall Stone Gray"
+      },
+      {
+        "id": "wall-timber-brown",
+        "file": "wall/wall-timber-brown.svg",
+        "type": "timber",
+        "name": "Wall Timber Brown"
+      },
+      {
+        "id": "wall-panel-blue",
+        "file": "wall/wall-panel-blue.svg",
+        "type": "panel",
+        "name": "Wall Panel Blue"
+      },
+      {
+        "id": "wall-adobe-sand",
+        "file": "wall/wall-adobe-sand.svg",
+        "type": "adobe",
+        "name": "Wall Adobe Sand"
+      },
+      {
+        "id": "wall-concrete-light",
+        "file": "wall/wall-concrete-light.svg",
+        "type": "concrete",
+        "name": "Wall Concrete Light"
+      },
+      {
+        "id": "wall-tile-mint",
+        "file": "wall/wall-tile-mint.svg",
+        "type": "tile",
+        "name": "Wall Tile Mint"
+      }
+    ],
+    "door": [
+      {
+        "id": "door-classic-brown",
+        "file": "door/door-classic-brown.svg",
+        "type": "classic",
+        "name": "Door Classic Brown"
+      },
+      {
+        "id": "door-arch-green",
+        "file": "door/door-arch-green.svg",
+        "type": "arch",
+        "name": "Door Arch Green"
+      },
+      {
+        "id": "door-double-charcoal",
+        "file": "door/door-double-charcoal.svg",
+        "type": "double",
+        "name": "Door Double Charcoal"
+      },
+      {
+        "id": "door-glass-modern",
+        "file": "door/door-glass-modern.svg",
+        "type": "glass",
+        "name": "Door Glass Modern"
+      },
+      {
+        "id": "door-barn-red",
+        "file": "door/door-barn-red.svg",
+        "type": "barn",
+        "name": "Door Barn Red"
+      },
+      {
+        "id": "door-ornate-navy",
+        "file": "door/door-ornate-navy.svg",
+        "type": "ornate",
+        "name": "Door Ornate Navy"
+      }
+    ],
+    "window": [
+      {
+        "id": "window-square-white",
+        "file": "window/window-square-white.svg",
+        "type": "square",
+        "name": "Window Square White"
+      },
+      {
+        "id": "window-round-wood",
+        "file": "window/window-round-wood.svg",
+        "type": "round",
+        "name": "Window Round Wood"
+      },
+      {
+        "id": "window-bay-blue",
+        "file": "window/window-bay-blue.svg",
+        "type": "bay",
+        "name": "Window Bay Blue"
+      },
+      {
+        "id": "window-lattice-cream",
+        "file": "window/window-lattice-cream.svg",
+        "type": "lattice",
+        "name": "Window Lattice Cream"
+      },
+      {
+        "id": "window-tall-modern",
+        "file": "window/window-tall-modern.svg",
+        "type": "tall",
+        "name": "Window Tall Modern"
+      },
+      {
+        "id": "window-shutter-green",
+        "file": "window/window-shutter-green.svg",
+        "type": "shutter",
+        "name": "Window Shutter Green"
+      }
+    ],
+    "chimney": [
+      {
+        "id": "chimney-brick",
+        "file": "chimney/chimney-brick.svg",
+        "type": "brick",
+        "name": "Chimney Brick"
+      },
+      {
+        "id": "chimney-stone",
+        "file": "chimney/chimney-stone.svg",
+        "type": "stone",
+        "name": "Chimney Stone"
+      },
+      {
+        "id": "chimney-metal",
+        "file": "chimney/chimney-metal.svg",
+        "type": "metal",
+        "name": "Chimney Metal"
+      },
+      {
+        "id": "chimney-wide-clay",
+        "file": "chimney/chimney-wide-clay.svg",
+        "type": "wide",
+        "name": "Chimney Wide Clay"
+      }
+    ],
+    "column": [
+      {
+        "id": "column-stone",
+        "file": "column/column-stone.svg",
+        "type": "stone",
+        "name": "Column Stone"
+      },
+      {
+        "id": "column-wood",
+        "file": "column/column-wood.svg",
+        "type": "wood",
+        "name": "Column Wood"
+      },
+      {
+        "id": "column-metal",
+        "file": "column/column-metal.svg",
+        "type": "metal",
+        "name": "Column Metal"
+      },
+      {
+        "id": "column-classic-white",
+        "file": "column/column-classic-white.svg",
+        "type": "classic",
+        "name": "Column Classic White"
+      },
+      {
+        "id": "column-brick",
+        "file": "column/column-brick.svg",
+        "type": "brick",
+        "name": "Column Brick"
+      }
+    ]
+  }
+}

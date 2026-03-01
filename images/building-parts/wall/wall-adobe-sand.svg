@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80" role="img" aria-labelledby="title desc">
+  <title id="title">Wall Adobe Sand</title>
+  <desc id="desc">Building part pattern: Wall Adobe Sand</desc>
+  <rect x="6" y="10" width="108" height="62" rx="2" fill="#d8c08e" stroke="#876c40" stroke-width="2"/>
+  <rect x="6" y="10" width="108" height="6" fill="#c4ab78"/>
+  <rect x="6" y="66" width="108" height="6" fill="#c4ab78"/>
+  <path d="M10 30 Q24 24 38 30 T66 30 T94 30 T110 30" fill="none" stroke="#9a7f4f" stroke-width="2" opacity="0.7"/>
+  <path d="M10 44 Q24 38 38 44 T66 44 T94 44 T110 44" fill="none" stroke="#9a7f4f" stroke-width="2" opacity="0.7"/>
+  <path d="M10 58 Q24 52 38 58 T66 58 T94 58 T110 58" fill="none" stroke="#9a7f4f" stroke-width="2" opacity="0.7"/>
+</svg>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80" role="img" aria-labelledby="title desc">
+  <title id="title">Wall Concrete Light</title>
+  <desc id="desc">Building part pattern: Wall Concrete Light</desc>
+  <rect x="6" y="10" width="108" height="62" rx="2" fill="#d8dce0" stroke="#7f8790" stroke-width="2"/>
+  <rect x="6" y="10" width="108" height="6" fill="#c6cbd0"/>
+  <rect x="6" y="66" width="108" height="6" fill="#c6cbd0"/>
+  <g fill="#8f969d" opacity="0.45">
+    <rect x="16" y="22" width="2" height="2"/><rect x="26" y="40" width="2" height="2"/><rect x="38" y="28" width="2" height="2"/>
+    <rect x="54" y="50" width="2" height="2"/><rect x="68" y="24" width="2" height="2"/><rect x="82" y="42" width="2" height="2"/>
+    <rect x="96" y="30" width="2" height="2"/><rect x="104" y="54" width="2" height="2"/>
+  </g>
+</svg>

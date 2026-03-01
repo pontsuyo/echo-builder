@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="72" viewBox="0 0 120 72" role="img" aria-labelledby="title desc">
+  <title id="title">Roof Triangle Red</title>
+  <desc id="desc">Building part pattern: Roof Triangle Red</desc>
+  <polygon points="8,58 60,8 112,58" fill="#cf5547" stroke="#6f241c" stroke-width="2"/>
+  <g stroke="#ffd8d1" stroke-width="2" stroke-linecap="round" opacity="0.9">
+      <line x1="22" y1="50" x2="98" y2="50"/>
+      <line x1="26" y1="44" x2="94" y2="44"/>
+      <line x1="30" y1="38" x2="90" y2="38"/>
+    </g>
+  <line x1="60" y1="10" x2="60" y2="58" stroke="#9a352a" stroke-width="2" opacity="0.7"/>
+</svg>

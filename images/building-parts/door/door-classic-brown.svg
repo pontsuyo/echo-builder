@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="96" viewBox="0 0 64 96" role="img" aria-labelledby="title desc">
+  <title id="title">Door Classic Brown</title>
+  <desc id="desc">Building part pattern: Door Classic Brown</desc>
+  <rect x="10" y="8" width="44" height="80" rx="2" fill="#6a4a36" stroke="#4b3427" stroke-width="2"/>
+  <rect x="16" y="18" width="14" height="24" fill="#8b674e" opacity="0.6"/>
+  <rect x="34" y="18" width="14" height="24" fill="#8b674e" opacity="0.6"/>
+  <rect x="16" y="48" width="14" height="30" fill="#8b674e" opacity="0.55"/>
+  <rect x="34" y="48" width="14" height="30" fill="#8b674e" opacity="0.55"/>
+  <circle cx="40" cy="50" r="2" fill="#e3c56f"/>
+</svg>

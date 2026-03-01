@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="96" viewBox="0 0 48 96" role="img" aria-labelledby="title desc">
+  <title id="title">Chimney Metal</title>
+  <desc id="desc">Building part pattern: Chimney Metal</desc>
+  <rect x="14" y="18" width="20" height="68" rx="3" fill="#8d97a3" stroke="#545f6d" stroke-width="2"/>
+  <rect x="10" y="10" width="28" height="10" rx="2" fill="#6e7987" stroke="#545f6d" stroke-width="2"/>
+  <line x1="18" y1="24" x2="18" y2="82" stroke="#d7dde3" stroke-width="2" opacity="0.7"/>
+  <line x1="24" y1="24" x2="24" y2="82" stroke="#d7dde3" stroke-width="2" opacity="0.55"/>
+  <line x1="30" y1="24" x2="30" y2="82" stroke="#d7dde3" stroke-width="2" opacity="0.4"/>
+  <circle cx="24" cy="14" r="2" fill="#d7dde3"/>
+</svg>

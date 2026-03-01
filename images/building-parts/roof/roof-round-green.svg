@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="72" viewBox="0 0 120 72" role="img" aria-labelledby="title desc">
+  <title id="title">Roof Round Green</title>
+  <desc id="desc">Building part pattern: Roof Round Green</desc>
+  <path d="M8 58 Q60 6 112 58 Z" fill="#3f9967" stroke="#204e35" stroke-width="2"/>
+  <path d="M20 52 Q60 16 100 52" fill="none" stroke="#2a6947" stroke-width="3" stroke-linecap="round"/>
+  <path d="M28 46 Q60 24 92 46" fill="none" stroke="#d5f4de" stroke-width="2" stroke-linecap="round"/>
+  <path d="M36 40 Q60 30 84 40" fill="none" stroke="#d5f4de" stroke-width="2" stroke-linecap="round"/>
+</svg>

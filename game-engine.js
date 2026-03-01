@@ -1200,7 +1200,7 @@ function drawRecognizedTranscriptDock(hoveredRow, commandRows) {
     : [];
 
   const panelPadding = 8;
-  const panelW = Math.min(340, W - 12);
+  const panelW = Math.min(240, W - 12);
   const panelX = clamp(Math.round(W - panelW - 6), 6, W - panelW - 6);
   const panelH = 94;
   const panelY = H - panelH - 6;
@@ -1638,9 +1638,9 @@ function drawDotBody(x, y, sprite = {}, opacity = 1.0) {
   const h = sprite.h || 12;
   const isHero = sprite.isHero === true;
   const isThinking = isHero && Boolean(sprite.isListening);
-  const heroColor = '#00ff00';
   const heroEye = '#003b14';
   const enemyColor = sprite.color || '#ff3d3d';
+  const facing = sprite.facing >= 0 ? 1 : -1;
 
   const drawY = y + (isThinking ? -2 : 0);
   const drawH = h + (isThinking ? 2 : 0);
@@ -1654,7 +1654,6 @@ function drawDotBody(x, y, sprite = {}, opacity = 1.0) {
       // 顔を上を向いた「考え中」ポーズ
       ctx.fillStyle = '#8dff89';
       ctx.fillRect(x + 2, drawY - 3, w - 4, 3);
-
       ctx.fillStyle = heroEye;
       ctx.fillRect(x + 4, drawY, 2, 2);
       ctx.fillRect(x + 6, drawY, 2, 2);
@@ -1662,8 +1661,12 @@ function drawDotBody(x, y, sprite = {}, opacity = 1.0) {
       ctx.fillRect(x + 8, drawY - 2, 1, 2);
       ctx.fillRect(x + w / 2 - 1, drawY - 2, 2, 2);
     } else {
+      // 通常時は最小限の目だけで顔を判別しやすくする
+      const eyeY = y + 5;
+      const faceBaseX = facing > 0 ? x + w - 6 : x + 2;
       ctx.fillStyle = heroEye;
-      ctx.fillRect(x + (sprite.facing >= 0 ? w - 3 : 3), y + 4, 2, 2);
+      ctx.fillRect(faceBaseX, eyeY, 1, 1);
+      ctx.fillRect(faceBaseX + 2, eyeY, 1, 1);
     }
 
     // 顎に手を当てるように見せる装飾（簡易）
@@ -1673,13 +1676,27 @@ function drawDotBody(x, y, sprite = {}, opacity = 1.0) {
       ctx.fillRect(x + w - 2, drawY + 8, 2, 1);
     }
   } else {
-    // ドット風: 2x2で色を変える
+    // ドット風: 単色ボディに最小限の顔パーツを重ねる
     ctx.fillStyle = enemyColor;
     ctx.globalAlpha = opacity;
     ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = '#ff9a9a';
-    ctx.fillRect(x + 1, y + 1, 4, 4);
-    ctx.fillRect(x + w - 5, y + 1, 4, 4);
+
+    const centerX = x + Math.floor(w / 2);
+    const eyeY = y + Math.max(4, Math.floor(h * 0.35));
+    const isMoving = Boolean(sprite.isMoving);
+    let leftEyeX = centerX - 2;
+    let rightEyeX = centerX + 1;
+    if (isMoving && facing > 0) {
+      leftEyeX = centerX;
+      rightEyeX = centerX + 2;
+    } else if (isMoving && facing < 0) {
+      leftEyeX = centerX - 3;
+      rightEyeX = centerX - 1;
+    }
+
+    ctx.fillStyle = '#532020';
+    ctx.fillRect(leftEyeX, eyeY, 1, 1);
+    ctx.fillRect(rightEyeX, eyeY, 1, 1);
   }
   ctx.globalAlpha = 1.0;
 }
@@ -2006,6 +2023,7 @@ function draw() {
       type: e.type,
       faceDir: 1,
       facing: e.dir,
+      isMoving: e.state === NPC_ACTIVITY_STATES.WALK,
       walkPhase: e.walkPhase,
       cap: e.cap,
       skin: e.skin,

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="96" viewBox="0 0 64 96" role="img" aria-labelledby="title desc">
+  <title id="title">Door Arch Green</title>
+  <desc id="desc">Building part pattern: Door Arch Green</desc>
+  <path d="M10 88 V36 Q32 8 54 36 V88 Z" fill="#4a6d4f" stroke="#304834" stroke-width="2"/>
+  <path d="M18 84 V40 Q32 20 46 40 V84 Z" fill="#79a17f" opacity="0.5"/>
+  <line x1="32" y1="36" x2="32" y2="84" stroke="#304834" stroke-width="2" opacity="0.7"/>
+  <circle cx="36" cy="52" r="2" fill="#d8c77e"/>
+</svg>

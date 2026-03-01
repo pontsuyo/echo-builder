@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80" role="img" aria-labelledby="title desc">
+  <title id="title">Wall Panel Blue</title>
+  <desc id="desc">Building part pattern: Wall Panel Blue</desc>
+  <rect x="6" y="10" width="108" height="62" rx="2" fill="#89a9c7" stroke="#36536b" stroke-width="2"/>
+  <rect x="6" y="10" width="108" height="6" fill="#6c8ca9"/>
+  <rect x="6" y="66" width="108" height="6" fill="#6c8ca9"/>
+  <g stroke="#456886" stroke-width="2" opacity="0.7">
+    <line x1="10" y1="22" x2="110" y2="22"/><line x1="10" y1="30" x2="110" y2="30"/><line x1="10" y1="38" x2="110" y2="38"/>
+    <line x1="10" y1="46" x2="110" y2="46"/><line x1="10" y1="54" x2="110" y2="54"/><line x1="10" y1="62" x2="110" y2="62"/>
+  </g>
+</svg>

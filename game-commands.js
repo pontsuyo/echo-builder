@@ -967,6 +967,7 @@ function moveToward(npc, targetX, speed, dt) {
     npc.x = targetX;
     return true;
   }
+  npc.dir = dx >= 0 ? 1 : -1;
   const step = Math.min(1, (speed * dt) / Math.max(1, distance));
   npc.x += dx * step;
   return step >= 1;
