@@ -1537,20 +1537,38 @@ function drawScorePopupAboveHouse() {
     }
   }
 
-  const footerBaseY = rectY + lines.length * lineHeight + 24;
   const titleText = 'BUILD COMPLETE';
   const retryText = 'Press R to retry';
+
+  ctx.font = 'bold 13px "Courier New", monospace';
+  const titleW = Math.ceil(ctx.measureText(titleText).width) + 14;
+  const titleH = 16;
+  const titleX = -titleW / 2;
+  const titleY = rectY - Math.floor(titleH / 2);
+
+  ctx.fillStyle = 'rgba(5, 18, 33, 0.98)';
+  ctx.strokeStyle = 'rgba(255, 236, 160, 0.95)';
+  ctx.globalAlpha = 0.95 * appear;
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(titleX, titleY, titleW, titleH, 4);
+  } else {
+    ctx.beginPath();
+    ctx.rect(titleX, titleY, titleW, titleH);
+  }
+  ctx.fill();
+  ctx.stroke();
 
   ctx.font = 'bold 13px "Courier New", monospace';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffd27a';
   ctx.globalAlpha = 0.94 * appear;
-  ctx.fillText(titleText, 0, footerBaseY - 8);
+  ctx.fillText(titleText, 0, titleY + 2);
 
   ctx.font = '11px "Courier New", monospace';
   ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
   ctx.globalAlpha = 0.85 * appear;
-  ctx.fillText(retryText, 0, footerBaseY + 4);
+  ctx.fillText(retryText, 0, rectY + panelH - 18);
 
   ctx.textAlign = 'left';
   ctx.restore();
