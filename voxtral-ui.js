@@ -45,10 +45,10 @@
   function updateAudioSendButtonLabel() {
     if (!audioSendToggleButton) return;
     const enabled = isAudioSendEnabled();
-    audioSendToggleButton.textContent = enabled ? 'Python送信: ON' : 'Python送信: OFF';
+    audioSendToggleButton.textContent = enabled ? 'Send Audio: ON' : 'Send Audio: OFF';
     audioSendToggleButton.setAttribute(
       'aria-label',
-      enabled ? 'Python送信は有効です' : 'Python送信は無効です'
+      enabled ? 'Send audio upload enabled' : 'Send audio upload disabled'
     );
   }
 
