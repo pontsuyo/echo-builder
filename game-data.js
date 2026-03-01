@@ -24,7 +24,13 @@ resizeCanvasForDpr();
 window.addEventListener('resize', resizeCanvasForDpr, { passive: true });
 const resultToggleButton = document.getElementById('toggle-command-result');
 const debugToggleButton = document.getElementById('toggle-debug-overlay');
-const debugOnlyButtons = Array.from(document.querySelectorAll('.test-button'));
+const testButtonsToggleButton = document.getElementById('toggle-test-buttons');
+const testRelatedButtons = [];
+const audioSendButton = document.getElementById('toggle-audio-send');
+if (audioSendButton) {
+  testRelatedButtons.push(audioSendButton);
+}
+testRelatedButtons.push(...document.querySelectorAll('.test-button'));
 const childSpeechToggleButton = document.getElementById('toggle-child-speech');
 let showChildSpeech = typeof window.__ELEVENLABS_TTS_ENABLED === 'boolean'
   ? window.__ELEVENLABS_TTS_ENABLED
@@ -624,6 +630,7 @@ const commandSession = {
 };
 let showCommandResults = false;
 let showDebugOverlay = true;
+let showTestButtons = true;
 let commandResultRows = [];
 houseParts = createHouseParts();
 
@@ -798,16 +805,30 @@ function resetNpcCommandState(npc) {
 
 function updateDebugToggleButton() {
   if (!debugToggleButton) return;
-  debugToggleButton.textContent = showDebugOverlay ? 'debug: ON' : 'debug: OFF';
-  debugOnlyButtons.forEach((button) => {
+  debugToggleButton.textContent = showDebugOverlay ? 'debug info: ON' : 'debug info: OFF';
+}
+
+function updateTestButtonsToggleButton() {
+  testRelatedButtons.forEach((button) => {
     if (!button) return;
-    button.style.display = showDebugOverlay ? '' : 'none';
+    button.style.display = showTestButtons ? '' : 'none';
   });
+  if (!testButtonsToggleButton) return;
+  testButtonsToggleButton.textContent = showTestButtons ? 'debug button: ON' : 'debug button: OFF';
+  testButtonsToggleButton.setAttribute(
+    'aria-label',
+    showTestButtons ? 'Hide debug test buttons' : 'Show debug test buttons'
+  );
 }
 
 function toggleDebugOverlay() {
   showDebugOverlay = !showDebugOverlay;
   updateDebugToggleButton();
+}
+
+function toggleTestButtons() {
+  showTestButtons = !showTestButtons;
+  updateTestButtonsToggleButton();
 }
 
 function isChildSpeechEnabled() {

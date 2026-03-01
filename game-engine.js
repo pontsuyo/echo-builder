@@ -2242,6 +2242,9 @@ if (resultToggleButton) {
 if (debugToggleButton) {
   debugToggleButton.addEventListener('click', toggleDebugOverlay);
 }
+if (testButtonsToggleButton) {
+  testButtonsToggleButton.addEventListener('click', toggleTestButtons);
+}
 if (typeof updateChildSpeechToggleButton === 'function') {
   updateChildSpeechToggleButton();
 }
@@ -2258,6 +2261,9 @@ if (canvas) {
 window.resetGame = resetGame;
 updateCommandButtons();
 updateDebugToggleButton();
+if (typeof updateTestButtonsToggleButton === 'function') {
+  updateTestButtonsToggleButton();
+}
 
 window.render_game_to_text = () =>
   JSON.stringify({
