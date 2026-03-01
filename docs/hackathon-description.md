@@ -32,33 +32,3 @@ Echo Builder is a browser-based game that uses voice commands to control AI work
 ## How Mistral AI Is Used
 
 Echo Builder uses the Mistral Voxtral API for speech-to-text. Audio from the browser microphone is streamed to the API, which returns transcriptions. The game parses these transcripts into build commands and drives the AI workers' actions. A local proxy server keeps the API key secure and out of the browser.
-
----
-
-## How to Run (Local)
-
-1. **Start a simple Python HTTP server** (port 8000)
-   ```bash
-   python3 -m http.server 8000
-   ```
-
-2. **Set environment variables**
-   - Copy `.env.example` to `.env` and configure your API keys
-   ```bash
-   cp .env.example .env
-   # Edit .env and set:
-   #   MISTRAL_API_KEY (required)
-   #   ELEVENLABS_API_KEY (optional, for TTS)
-   ```
-
-3. **Create a virtual environment and start the proxy server** (port 8001)
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   python3 mistral_proxy.py
-   ```
-
-4. **Open in browser**
-   - Navigate to `http://localhost:8000/`
-   - Use the test button to verify voice recognition
