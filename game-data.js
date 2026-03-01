@@ -629,7 +629,7 @@ const commandSession = {
   cursor: 0,
 };
 let showCommandResults = false;
-let showDebugOverlay = true;
+let showDebugOverlay = false;
 let showTestButtons = true;
 let commandResultRows = [];
 houseParts = createHouseParts();
