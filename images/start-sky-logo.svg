@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="520" height="140" viewBox="0 0 520 140" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="598" height="161" viewBox="0 0 520 140" fill="none">
   <defs>
     <linearGradient id="sunGlow" x1="32" y1="28" x2="104" y2="100" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#ffffff" stop-opacity="0.96" />
@@ -11,14 +11,24 @@
     </linearGradient>
   </defs>
 
-  <circle cx="72" cy="34" r="22" fill="url(#sunGlow)" />
-  <path
-    d="M18 100 Q46 80 74 100 L74 126 Q74 136 64 136 H28 Q18 136 18 126 Z"
-    fill="#f9e5bc"
-    opacity="0.28"
+  <rect
+    x="4"
+    y="4"
+    width="512"
+    height="132"
+    rx="20"
+    fill="#ffffff"
+    fill-opacity="0.24"
+    stroke="#9dc9f1"
+    stroke-opacity="0.24"
+    stroke-width="2"
   />
 
-  <rect x="260" y="96" width="56" height="40" rx="4" fill="#f2f2ea" />
+  <path d="M8 128 H512" stroke="#c5d9f2" stroke-width="2" stroke-dasharray="4 5" opacity="0.6" />
+
+  <circle cx="72" cy="34" r="22" fill="url(#sunGlow)" />
+
+  <rect x="260" y="96" width="56" height="40" rx="4" fill="#f8f8f2" fill-opacity="0.6" />
   <polygon points="260,96 288,74 316,96" fill="url(#houseRoof)" />
   <rect x="276" y="120" width="14" height="16" fill="#5e4839" />
   <rect x="292" y="117" width="12" height="19" fill="#5e4839" />
@@ -27,7 +37,7 @@
   <circle cx="288" cy="86" r="2" fill="#fdf8b8" />
   <circle cx="298" cy="86" r="2" fill="#fdf8b8" />
 
-  <rect x="408" y="90" width="40" height="46" rx="6" fill="#f2f2ea" />
+  <rect x="408" y="90" width="40" height="46" rx="6" fill="#f8f8f2" fill-opacity="0.6" />
   <polygon points="408,90 428,66 448,90" fill="#cf5547" />
   <rect x="420" y="109" width="13" height="27" fill="#5e4839" />
   <path
@@ -35,8 +45,7 @@
     fill="#fdf8b8"
   />
 
-  <text x="16" y="54" fill="#1f2f45" font-family="Courier New, monospace" font-size="26" font-weight="700" letter-spacing="1">Echo Builder</text>
-  <text x="16" y="84" fill="#3e5173" font-family="Courier New, monospace" font-size="14" font-weight="500">Speak to Build</text>
+  <text x="16" y="60" fill="#1f2f45" font-family="Courier New, monospace" font-size="34" font-weight="700" letter-spacing="1">Echo Builder</text>
+  <text x="16" y="90" fill="#3e5173" font-family="Courier New, monospace" font-size="16" font-weight="500">Speak to Build</text>
 
-  <path d="M8 128 H512" stroke="#c5d9f2" stroke-width="2" stroke-dasharray="4 5" opacity="0.6" />
 </svg>

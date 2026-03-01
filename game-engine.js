@@ -4,7 +4,7 @@ const CLEAR_PLAYER_ENTRY_START_SCREEN_X = -80;
 const CLEAR_PLAYER_ENTRY_TARGET_SCREEN_X_RATIO = 0.18;
 const START_LOGO_IMAGE_PATH = '/images/start-sky-logo.svg';
 const START_LOGO_WORLD_X = 170;
-const START_LOGO_Y = 8;
+const START_LOGO_Y = 24;
 
 function createSkyLogoImageState(path = '') {
   const source = String(path || '').trim();
