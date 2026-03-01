@@ -1,3 +1,5 @@
+const BUILD_COMPLETE_DELAY_MS = 1000;
+
 function resetGame() {
   clear = false;
   houseRevealMicStopped = false;
@@ -265,7 +267,8 @@ function updateCamera(dt) {
         goalScore = evaluated.score;
         goalScoreBreakdown = evaluated.breakdown;
         scoreVisible = true;
-        scorePopupShownAt = performance.now();
+        // Delay BUILD COMPLETE popup by 1s after the house arrives.
+        scorePopupShownAt = performance.now() + BUILD_COMPLETE_DELAY_MS;
 
         if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
           window.dispatchEvent(
@@ -1459,6 +1462,9 @@ function drawScorePopupAboveHouse() {
   }
 
   const elapsed = Math.max(0, performance.now() - scorePopupShownAt);
+  if (elapsed <= 0) {
+    return;
+  }
   const appear = clamp01(Math.min(elapsed / 450, 1));
   const pulse = 1 + Math.sin(elapsed / 170) * 0.025;
   const floatY = (1 - appear) * 8;
