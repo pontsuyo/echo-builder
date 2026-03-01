@@ -1806,7 +1806,7 @@ function drawPlayerSpeechBubble(anchorX, topY, isListening = false, opacity = 1.
   const bubbleX = anchorX - bubbleW / 2;
   const bubbleY = topY - bubbleH - 40;
 
-  const fill = isListening ? '#ffffff' : '#f6fbff';
+  const fill = isListening ? '#aeb9c3' : '#b9c2cb';
   const stroke = isListening ? '#2d4666' : '#4d678a';
 
   const bx = clamp(bubbleX, 2, Math.max(2, W - bubbleW - 2));

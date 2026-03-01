@@ -633,7 +633,7 @@ const commandSession = {
 };
 let showCommandResults = false;
 let showDebugOverlay = false;
-let showTestButtons = true;
+let showTestButtons = false;
 let commandResultRows = [];
 houseParts = createHouseParts();
 
