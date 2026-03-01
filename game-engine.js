@@ -1,9 +1,16 @@
 const BUILD_COMPLETE_DELAY_MS = 1000;
+const CLEAR_PLAYER_ENTRY_DURATION_MS = 1400;
+const CLEAR_PLAYER_ENTRY_START_SCREEN_X = -80;
+const CLEAR_PLAYER_ENTRY_TARGET_SCREEN_X_RATIO = 0.18;
 
 function resetGame() {
   clear = false;
   houseRevealMicStopped = false;
   scorePopupShownAt = 0;
+  clearPlayerEntryActive = false;
+  clearPlayerEntryStartAt = 0;
+  clearPlayerEntryStartX = 0;
+  clearPlayerEntryTargetX = 0;
   hoveredInterpretationSpeechKey = '';
   stopChildSpeech();
   clearChildSpeechState();
@@ -42,6 +49,10 @@ function resetGame() {
 
 let houseRevealMicStopped = false;
 let scorePopupShownAt = 0;
+let clearPlayerEntryActive = false;
+let clearPlayerEntryStartAt = 0;
+let clearPlayerEntryStartX = 0;
+let clearPlayerEntryTargetX = 0;
 let pointerCanvasX = -1;
 let pointerCanvasY = -1;
 let activeChildSpeechAudio = null;
@@ -97,6 +108,38 @@ function stopHouseRevealMicIfNeeded() {
     window.stopVoxtralMic();
   }
   houseRevealMicStopped = true;
+}
+
+function startClearPlayerEntryAnimation() {
+  const leftmostChildX = npcs.length > 0
+    ? npcs.reduce((minX, npc) => Math.min(minX, npc.x), npcs[0].x)
+    : NaN;
+  clearPlayerEntryStartX = clamp(cameraX + CLEAR_PLAYER_ENTRY_START_SCREEN_X, 0, WORLD_W - player.w);
+  clearPlayerEntryTargetX = Number.isFinite(leftmostChildX)
+    ? clamp(leftmostChildX - player.w - 6, 0, WORLD_W - player.w)
+    : clamp(cameraX + W * CLEAR_PLAYER_ENTRY_TARGET_SCREEN_X_RATIO, 0, WORLD_W - player.w);
+  clearPlayerEntryStartAt = performance.now();
+  clearPlayerEntryActive = true;
+  player.x = clearPlayerEntryStartX;
+  player.y = FLOOR_Y - player.h;
+  player.facing = 1;
+}
+
+function updateClearPlayerEntry() {
+  if (!clearPlayerEntryActive) {
+    return;
+  }
+
+  const elapsed = Math.max(0, performance.now() - clearPlayerEntryStartAt);
+  const tLinear = clamp(elapsed / CLEAR_PLAYER_ENTRY_DURATION_MS, 0, 1);
+  // easeOutCubic: ゆっくり開始して最後まで滑らかに加速し、緩やかに到達
+  const t = 1 - Math.pow(1 - tLinear, 3);
+  player.x = clearPlayerEntryStartX + (clearPlayerEntryTargetX - clearPlayerEntryStartX) * t;
+
+  if (tLinear >= 1) {
+    player.x = clearPlayerEntryTargetX;
+    clearPlayerEntryActive = false;
+  }
 }
 
 function resetPlayer() {
@@ -297,6 +340,8 @@ function updateCamera(dt) {
       if (!houseRevealMicStopped) {
         stopHouseRevealMicIfNeeded();
       }
+
+      startClearPlayerEntryAnimation();
 
       return;
     }
@@ -1719,7 +1764,7 @@ function drawPlayerSpeechBubble(anchorX, topY, isListening = false, opacity = 1.
   const fill = isListening ? '#ffffff' : '#f6fbff';
   const stroke = isListening ? '#2d4666' : '#4d678a';
 
-  const bx = Math.max(2, bubbleX);
+  const bx = clamp(bubbleX, 2, Math.max(2, W - bubbleW - 2));
   const by = Math.max(2, bubbleY);
   const tailX = clamp(anchorX, bx + 8, bx + bubbleW - 8);
   const by2 = by + bubbleH;
@@ -2106,8 +2151,9 @@ function draw() {
       heroSpeechBubbleUnlocked
       && (!clear || heroListening || Boolean(latestLiveTranscript && String(latestLiveTranscript).trim()));
     if (hasSpeechBubble) {
+      const bubbleAnchorX = clamp(px + player.w / 2, 0, W);
       drawPlayerSpeechBubble(
-        px + player.w / 2,
+        bubbleAnchorX,
         player.y,
         heroListening,
         heroListening ? 1.0 : 0.8,
@@ -2150,6 +2196,7 @@ function update(dt) {
     checkHouseRevealTrigger();
   }
   updateCamera(dt);
+  updateClearPlayerEntry();
 }
 
 function loop(now) {
