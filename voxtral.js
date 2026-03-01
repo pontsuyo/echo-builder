@@ -74,6 +74,7 @@
   let lastHeroSpeechSentText = '';
   let lastHeroSpeechSentAt = 0;
   let isMicFlowSuspended = false;
+  let audioSendEnabled = true;
   const HERO_SPEECH_MIN_LEN = 2;
   const HERO_SPEECH_IDLE_MS = 600;
   const HERO_SPEECH_COOLDOWN_MS = 700;
@@ -125,6 +126,13 @@
   let livePcmSilenceFrames = 0;
   let liveTranscriptSessionStartAt = 0;
   const isMicActive = () => micActive;
+  const isAudioServerSendEnabled = () => audioSendEnabled;
+
+  function setAudioServerSendEnabled(enabled) {
+    audioSendEnabled = Boolean(enabled);
+    logDebug('audio server send toggled', { enabled: audioSendEnabled });
+    return audioSendEnabled;
+  }
 
   function notifyHeroListening(active) {
     if (gameApi && typeof gameApi.setHeroListening === 'function') {
@@ -1281,6 +1289,10 @@
 
   async function sendTranscriptionChunk(blob, options = {}) {
     const { allowFlowSuspended = false, allowNonStreamFallback = AUDIO_STREAM_SHORT_TEXT_RETRY } = options || {};
+    if (!isAudioServerSendEnabled()) {
+      logDebug('audio transcription skipped (server send disabled)');
+      return '';
+    }
     if (isMicFlowSuspended && !allowFlowSuspended) {
       logDebug('audio transcription skipped (flow suspended)');
       return '';
@@ -1898,7 +1910,11 @@
   window.pauseVoxtralMic = () => stopMicCapture({ finalize: false });
   window.resumeVoxtralMic = () => startMicCapture();
   window.setupVoxtralIntegration = setupIntegration;
-  window.__voxtralState = { isMicActive };
+  window.__voxtralState = {
+    isMicActive,
+    isAudioServerSendEnabled,
+    setAudioServerSendEnabled,
+  };
 
   // UI側で使うためにエクスポート
   window.__voxtralSendTestAudio = sendTestAudio;

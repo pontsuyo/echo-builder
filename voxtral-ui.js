@@ -1,5 +1,6 @@
 (function () {
   const micButton = document.getElementById('ask-voxtral-mic');
+  const audioSendToggleButton = document.getElementById('toggle-audio-send');
   const testRedRoofButton = document.getElementById('test-red-roof');
   const testTwoWindowsButton = document.getElementById('test-two-windows');
   const testTwoDotsButton = document.getElementById('test-two-dots');
@@ -27,6 +28,30 @@
     return Boolean(window.__voxtralState.isMicActive());
   }
 
+  function isAudioSendEnabled() {
+    if (!window.__voxtralState || typeof window.__voxtralState.isAudioServerSendEnabled !== 'function') {
+      return true;
+    }
+    return Boolean(window.__voxtralState.isAudioServerSendEnabled());
+  }
+
+  function setAudioSendEnabled(next) {
+    if (!window.__voxtralState || typeof window.__voxtralState.setAudioServerSendEnabled !== 'function') {
+      return;
+    }
+    window.__voxtralState.setAudioServerSendEnabled(next);
+  }
+
+  function updateAudioSendButtonLabel() {
+    if (!audioSendToggleButton) return;
+    const enabled = isAudioSendEnabled();
+    audioSendToggleButton.textContent = enabled ? 'Python送信: ON' : 'Python送信: OFF';
+    audioSendToggleButton.setAttribute(
+      'aria-label',
+      enabled ? 'Python送信は有効です' : 'Python送信は無効です'
+    );
+  }
+
   function updateMicButtonLabel() {
     if (!micButton) return;
     micButton.textContent = isMicActive() ? 'STOP' : isRetryMode ? 'Retry' : 'START';
@@ -43,6 +68,15 @@
       } else {
         startMic();
       }
+    });
+  }
+
+  if (audioSendToggleButton) {
+    audioSendToggleButton.disabled = false;
+    updateAudioSendButtonLabel();
+    audioSendToggleButton.addEventListener('click', () => {
+      setAudioSendEnabled(!isAudioSendEnabled());
+      updateAudioSendButtonLabel();
     });
   }
 

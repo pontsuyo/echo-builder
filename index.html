@@ -127,6 +127,10 @@
         text-align: center;
       }
 
+      .python-toggle-button {
+        min-width: 140px;
+      }
+
       /* テストボタン用スタイル */
       .test-button {
         border: 1px solid #8b5cf6;
@@ -164,6 +168,9 @@
         </div>
       </div>
       <div class="toolbar">
+        <button id="toggle-audio-send" class="debug-button python-toggle-button" title="Toggle voice audio upload to Python proxy">
+          Python送信: ON
+        </button>
         <button id="toggle-command-result">Command Log</button>
         <button id="ask-voxtral-mic">START</button>
         <button id="test-red-roof" class="test-button">Test: Red Roof</button>
