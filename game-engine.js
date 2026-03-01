@@ -2,6 +2,31 @@ const BUILD_COMPLETE_DELAY_MS = 450;
 const CLEAR_PLAYER_ENTRY_DURATION_MS = 900;
 const CLEAR_PLAYER_ENTRY_START_SCREEN_X = -80;
 const CLEAR_PLAYER_ENTRY_TARGET_SCREEN_X_RATIO = 0.18;
+const START_LOGO_IMAGE_PATH = '/images/start-sky-logo.svg';
+const START_LOGO_WORLD_X = 170;
+const START_LOGO_Y = 8;
+
+function createSkyLogoImageState(path = '') {
+  const source = String(path || '').trim();
+  if (!source || typeof Image === 'undefined') {
+    return { image: null, loaded: false, failed: true };
+  }
+
+  const image = new Image();
+  const state = { image, loaded: false, failed: false };
+
+  image.onload = () => {
+    state.loaded = true;
+  };
+  image.onerror = () => {
+    state.failed = true;
+  };
+  image.src = source;
+
+  return state;
+}
+
+const startSkyLogoImageState = createSkyLogoImageState(START_LOGO_IMAGE_PATH);
 
 function resetGame() {
   clear = false;
@@ -367,6 +392,8 @@ function drawSky() {
     if (cx + c.w < 0 || cx > W) continue;
     drawCloud(cx, floatY, c.w, c.h);
   }
+
+  drawStartSkyLogo();
 }
 
 function drawCloud(x, y, w, h) {
@@ -380,6 +407,24 @@ function drawCloud(x, y, w, h) {
     const cx = x + w * 0.2 * i;
     ctx.fillRect(cx + (i % 2), y + 2, 2, 2);
   }
+}
+
+function drawStartSkyLogo() {
+  if (!startSkyLogoImageState || !startSkyLogoImageState.image || !startSkyLogoImageState.loaded || startSkyLogoImageState.failed) {
+    return;
+  }
+
+  const logoW = Math.min(300, W - 40);
+  const sourceH = startSkyLogoImageState.image.naturalHeight;
+  const sourceW = startSkyLogoImageState.image.naturalWidth;
+  const ratio = Number.isFinite(sourceH) && Number.isFinite(sourceW) && sourceW > 0
+    ? sourceH / sourceW
+    : 0.28;
+  const logoH = Math.max(28, Math.round(logoW * ratio));
+  const logoX = Math.round(START_LOGO_WORLD_X - cameraX);
+  const logoY = START_LOGO_Y;
+
+  ctx.drawImage(startSkyLogoImageState.image, logoX, logoY, logoW, logoH);
 }
 
 function drawGround() {

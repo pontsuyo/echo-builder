@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="140" viewBox="0 0 520 140" fill="none">
+  <defs>
+    <linearGradient id="sunGlow" x1="32" y1="28" x2="104" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.96" />
+      <stop offset="100%" stop-color="#bde3ff" stop-opacity="0.7" />
+    </linearGradient>
+    <linearGradient id="houseRoof" x1="340" y1="48" x2="450" y2="102" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#cf5547" />
+      <stop offset="100%" stop-color="#ef7e6c" />
+    </linearGradient>
+  </defs>
+
+  <circle cx="72" cy="34" r="22" fill="url(#sunGlow)" />
+  <path
+    d="M18 100 Q46 80 74 100 L74 126 Q74 136 64 136 H28 Q18 136 18 126 Z"
+    fill="#f9e5bc"
+    opacity="0.28"
+  />
+
+  <rect x="260" y="96" width="56" height="40" rx="4" fill="#f2f2ea" />
+  <polygon points="260,96 288,74 316,96" fill="url(#houseRoof)" />
+  <rect x="276" y="120" width="14" height="16" fill="#5e4839" />
+  <rect x="292" y="117" width="12" height="19" fill="#5e4839" />
+  <rect x="306" y="124" width="8" height="12" fill="#5e4839" />
+  <rect x="270" y="108" width="5" height="10" fill="#d4b07a" />
+  <circle cx="288" cy="86" r="2" fill="#fdf8b8" />
+  <circle cx="298" cy="86" r="2" fill="#fdf8b8" />
+
+  <rect x="408" y="90" width="40" height="46" rx="6" fill="#f2f2ea" />
+  <polygon points="408,90 428,66 448,90" fill="#cf5547" />
+  <rect x="420" y="109" width="13" height="27" fill="#5e4839" />
+  <path
+    d="M418 113h16v6h-16zm4 10h8v8h-8zm1 10h6v4h-6z"
+    fill="#fdf8b8"
+  />
+
+  <text x="16" y="54" fill="#1f2f45" font-family="Courier New, monospace" font-size="26" font-weight="700" letter-spacing="1">Echo Builder</text>
+  <text x="16" y="84" fill="#3e5173" font-family="Courier New, monospace" font-size="14" font-weight="500">VOICE COMMAND HOUSE BUILDER</text>
+
+  <path d="M8 128 H512" stroke="#c5d9f2" stroke-width="2" stroke-dasharray="4 5" opacity="0.6" />
+</svg>
